@@ -1,0 +1,9 @@
+# Prod overrides
+include: "configs/default.yaml"
+
+display:
+  draw_fps: true
+  font_scale: 0.7
+
+io:
+  target_fps: 0

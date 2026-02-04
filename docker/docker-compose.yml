@@ -1,0 +1,14 @@
+services:
+  ai:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    volumes:
+      - ..:/app
+    working_dir: /app
+    environment:
+      - PYTHONUNBUFFERED=1
+    command: >
+      python -m src.main
+      --config ${AI_CONFIG:-configs/dev.yaml}
+      --no-window

@@ -1,0 +1,13 @@
+# Dev overrides
+include: "configs/default.yaml"
+
+source: "data/samples/test.mp4"
+
+display:
+  font_scale: 0.8
+  thickness: 2
+
+logic:
+  attention:
+    max_yaw_abs_deg: 30
+    max_pitch_abs_deg: 25

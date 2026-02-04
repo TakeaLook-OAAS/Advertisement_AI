@@ -1,0 +1,33 @@
+io:
+  width: 1280
+  height: 720
+  target_fps: 0            # 0 = don't throttle
+  warmup_frames: 5
+  flip_horizontal: false
+
+display:
+  draw_fps: true
+  draw_headpose: true
+  draw_gaze: true
+  window_name: "AI Demo"
+  font_scale: 0.7
+  thickness: 2
+
+models:
+  headpose:
+    enabled: true
+    weights_path: "models/headpose/weights/6drepnet.pth"
+    device: "cpu"          # cpu / cuda
+  gaze:
+    enabled: true
+    model_xml: "models/gaze/ir/gaze.xml"
+    device: "CPU"          # OpenVINO device: CPU / GPU / AUTO
+
+logic:
+  roi:
+    # polygon points in image coordinates (x,y)
+    polygon: [[200,200],[1000,200],[1000,650],[200,650]]
+  attention:
+    # Example thresholds (tune later)
+    max_yaw_abs_deg: 25
+    max_pitch_abs_deg: 20

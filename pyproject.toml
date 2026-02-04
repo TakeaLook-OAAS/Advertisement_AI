@@ -1,0 +1,16 @@
+[project]
+name = "ai-module-starter"
+version = "0.1.0"
+requires-python = ">=3.10"
+dependencies = [
+  "numpy>=1.24",
+  "PyYAML>=6.0",
+  "loguru>=0.7",
+  "opencv-python-headless>=4.8",
+  "openvino>=2024.0",
+  "torch>=2.1",
+  "torchvision>=0.16",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

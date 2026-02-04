@@ -1,0 +1,12 @@
+__pycache__/
+*.pyc
+.venv/
+.env
+
+# Outputs
+data/outputs/
+*.log
+
+# Large model files (recommended)
+models/headpose/weights/
+models/gaze/ir/
