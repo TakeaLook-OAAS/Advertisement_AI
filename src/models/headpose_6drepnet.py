@@ -34,7 +34,7 @@ class HeadPose6DRepNet:
         # (B) model loader (sixdrepnet)
         try:
             from sixdrepnet import SixDRepNet
-            self.model = SixDRepNet(device=self.device)
+            self.model = SixDRepNet()
 
             # optional: load your custom pth if you want
             if self.weights_path:
