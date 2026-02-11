@@ -1,9 +1,15 @@
 import argparse
 from loguru import logger
 
-from src.utils.config import load_config
 from src.pipeline.orchestrator import Orchestrator
 from src.pipeline.runner import run_loop
+
+DEFAULT_CFG = {
+    "source": "0",
+    "io": {"target_fps": 0, "warmup_frames": 0, "flip_horizontal": False},
+    "display": {"window_name": "AI Demo", "font_scale": 0.7, "thickness": 2, "draw_fps": True},
+    "models": {"yolo": {}, "tracker": {}},
+}
 
 def parse_args():
     p = argparse.ArgumentParser()
@@ -14,7 +20,14 @@ def parse_args():
 
 def main():
     args = parse_args()
-    cfg = load_config(args.config)
+    
+    cfg = DEFAULT_CFG
+    try:
+        from src.utils.config import load_config
+        cfg = load_config(args.config)
+    except Exception as e:
+        logger.warning(f"Config load failed, using DEFAULT_CFG. reason={e}")
+
 
     src = args.source if args.source is not None else cfg.get("source", "0")
     
