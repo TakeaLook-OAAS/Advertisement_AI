@@ -1,14 +1,16 @@
 --index-url https://download.pytorch.org/whl/cpu
 --extra-index-url https://pypi.org/simple
 
-numpy==2.3.5
+numpy==1.26.4
 PyYAML==6.0.3
 loguru==0.7.3
-opencv-python-headless==4.13.0.90
 
 # OpenVINO runtime (CPU)
+opencv-python-headless==4.10.0.84
 openvino==2025.4.1
+opencv-stubs==0.1.2
 
 # 6DRepNet typically uses PyTorch
-torch==2.1
-torchvision==0.16
+torch==2.1.0+cpu
+torchvision==0.16.0+cpu
+sixdrepnet==0.1.6
