@@ -10,3 +10,4 @@ data/outputs/
 # Large model files (recommended)
 models/headpose/weights/
 models/gaze/ir/
+models/face_detection/ir/
