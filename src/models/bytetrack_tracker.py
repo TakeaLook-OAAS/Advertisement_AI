@@ -7,7 +7,7 @@ from src.utils.types import Det, Track
 
 class ByteTrackTracker:
     """
-    ByteTrack 어댑터(계약서):
+    ByteTrack 어댑터:
       update(dets) -> List[Track]
 
     지금은 stub.
@@ -25,6 +25,7 @@ class ByteTrackTracker:
         # (YOLO 연결 후 화면에 track_id라도 보이게 하려고)
         tracks: List[Track] = []
         for d in dets:
-            tracks.append(Track(track_id=self._next_id, bbox=d.bbox, conf=d.conf, age=1, hits=1))
+            tracks.append(Track(track_id=self._next_id, bbox=d.bbox, age=1, hits=1))
             self._next_id += 1
         return tracks
+

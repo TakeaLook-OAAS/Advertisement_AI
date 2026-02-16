@@ -6,10 +6,20 @@ from enum import Enum
 from typing import Dict, List, Optional, Tuple
 
 
-# ----------------------------
-# Geometry / Common
-# ----------------------------
+# OpenCV
+@dataclass(frozen=True)
+class FrameMeta:
+    """
+    프레임 메타데이터
+    """
+    frame_idx: int  # 몇 번째 프레임인지
+    ts_ms: int      # 그 프레임의 시간 정보(밀리초)
+    fps: float      # 영상의 FPS
+    width: int      # 영상 해상도
+    height: int     # 영상 해상도
 
+
+# Yolo
 @dataclass(frozen=True)
 class BBoxXYXY:
     """
@@ -36,23 +46,6 @@ class BBoxXYXY:
     def center(self) -> Tuple[float, float]:
         return (self.x1 + self.x2) / 2.0, (self.y1 + self.y2) / 2.0
 
-
-@dataclass(frozen=True)
-class FrameMeta:
-    """
-    프레임 메타데이터
-    """
-    frame_idx: int  # 몇 번째 프레임인지
-    ts_ms: int      # 그 프레임의 시간 정보(밀리초)
-    fps: float      # 영상의 FPS
-    width: int      # 영상 해상도
-    height: int     # 영상 해상도
-
-
-# ----------------------------
-# Detection / Tracking
-# ----------------------------
-
 @dataclass(frozen=True)
 class Det:
     """
@@ -65,6 +58,26 @@ class Det:
     cls: int
 
 
+# 6DRepNet
+@dataclass(frozen=True)
+class HeadPose:
+    """
+    머리 자세 각도(Head pose)이며 단위는 degrees
+
+    컨벤션:
+    - yaw: 좌/우 회전
+    - pitch: 상/하 회전
+    - roll: 기울기(tilt)
+
+    모델마다 부호(sign) 정의가 다를 수 있으므로,
+    어댑터 레이어에서 부호/축 정의를 고정해서 맞춰야 함
+    """
+    yaw: float
+    pitch: float
+    roll: float
+
+
+# ByteTrack
 @dataclass
 class Track:
     """
@@ -90,60 +103,7 @@ class Track:
     dwell_frames: int = 0
 
 
-# ----------------------------
-# Attributes (MiVOLO)
-# ----------------------------
-
-class Gender(str, Enum):
-    male = "male"
-    female = "female"
-    unknown = "unknown"
-
-
-class AgeGroup(str, Enum):
-    child = "child"         # 예: 0-12
-    teen = "teen"           # 13-19
-    young = "young_adult"   # 20-29
-    adult = "adult"         # 30-49
-    senior = "senior"       # 50+
-    unknown = "unknown"
-
-
-@dataclass(frozen=True)
-class PersonAttr:
-    """
-    track_id별 MiVOLO 출력
-    """
-    gender: Gender
-    age_group: AgeGroup
-
-
-# ----------------------------
-# HeadPose (6DRepNet)
-# ----------------------------
-
-@dataclass(frozen=True)
-class HeadPose:
-    """
-    머리 자세 각도(Head pose)이며 단위는 degrees
-
-    컨벤션:
-    - yaw: 좌/우 회전
-    - pitch: 상/하 회전
-    - roll: 기울기(tilt)
-
-    모델마다 부호(sign) 정의가 다를 수 있으므로,
-    어댑터 레이어에서 부호/축 정의를 고정해서 맞춰야 함
-    """
-    yaw: float
-    pitch: float
-    roll: float
-
-
-# ----------------------------
-# Gaze (OpenVINO)
-# ----------------------------
-
+# OpenVINO
 @dataclass(frozen=True)
 class Gaze:
     """
@@ -158,10 +118,32 @@ class Gaze:
         return (self.x, self.y, self.z)
 
 
-# ----------------------------
-# Look judgement / Events / Stats
-# ----------------------------
+# MiVOLO
+class Gender(str, Enum):
+    male = "male"
+    female = "female"
+    unknown = "unknown"
 
+class AgeGroup(str, Enum):
+    child = "child"         # 예: 0-12
+    teen = "teen"           # 13-19
+    young = "young_adult"   # 20-29
+    adult = "adult"         # 30-49
+    senior = "senior"       # 50+
+    unknown = "unknown"
+
+@dataclass(frozen=True)
+class PersonAttr:
+    """
+    track_id별 MiVOLO 출력
+    """
+    gender: Gender
+    age_group: AgeGroup
+
+
+
+
+# Look judgement / Events / Stats
 @dataclass(frozen=True)
 class LookResult:
     """
@@ -174,7 +156,6 @@ class LookResult:
     score: float
     angle_deg: float
 
-
 class EventType(str, Enum):
     # 유동/체류/관심 집계를 위한 최소 이벤트들
     pass_by = "pass_by"             # 유동(ROI 근처/통과) 판정
@@ -185,7 +166,6 @@ class EventType(str, Enum):
     look_start = "look_start"
     look_end = "look_end"
     # 추가해야됨
-
 
 @dataclass(frozen=True)
 class Event:

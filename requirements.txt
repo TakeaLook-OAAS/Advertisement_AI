@@ -14,3 +14,9 @@ opencv-stubs==0.1.2
 torch==2.1.0+cpu
 torchvision==0.16.0+cpu
 sixdrepnet==0.1.6
+
+# YOLO detection
+ultralytics==8.4.14
+
+# Post-analysis charts
+matplotlib==3.10.0

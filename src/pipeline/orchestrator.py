@@ -15,6 +15,7 @@ from dataclasses import dataclass
 from typing import Any, Dict, List
 from src.models.bytetrack_tracker import ByteTrackTracker
 from src.models.yolo_detector import YoloDetector
+from src.models.headpose_6drepnet import HeadPoseEstimator
 from src.utils.types import Det, FrameMeta, Track
 
 
@@ -27,15 +28,19 @@ class OrchestratorOutput:
 class Orchestrator:
     """
     컨트롤 타워.
-    매 프레임마다: detect -> track (지금은 여기까지만)
+    매 프레임마다: detect -> track -> 구현 아직 x
     """
 
     def __init__(self, cfg: Dict[str, Any]):
         self.cfg = cfg
         self.detector = YoloDetector(cfg.get("models", {}).get("yolo", {}))
         self.tracker = ByteTrackTracker(cfg.get("models", {}).get("tracker", {}))
-
+        self.headpose = HeadPoseEstimator(cfg.get("models", {}).get("headpose", {}))
+        
     def process(self, frame, meta: FrameMeta) -> OrchestratorOutput:
+        # 1) detect
         dets = self.detector.detect(frame)
+
+        # 2) track
         tracks = self.tracker.update(dets)
         return OrchestratorOutput(dets=dets, tracks=tracks)

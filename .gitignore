@@ -5,6 +5,7 @@ __pycache__/
 
 # Outputs
 data/outputs/
+output/
 *.log
 
 # Large model files (recommended)

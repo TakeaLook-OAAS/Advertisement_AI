@@ -7,7 +7,7 @@ from src.utils.types import Det
 
 class YoloDetector:
     """
-    YOLO 어댑터(계약서):
+    YOLO 어댑터:
       detect(frame) -> List[Det]
 
     지금은 stub(빈 리스트 반환).
