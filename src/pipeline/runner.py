@@ -29,54 +29,46 @@ def _draw_tracks(frame, tracks: list[Track], font_scale: float, thickness: int) 
 def run_loop(cfg: Dict[str, Any], source: Union[int, str], orch, show_window: bool = True) -> None:
     vs = VideoSource(source)
 
-    io_cfg = cfg.get("io", {})
     disp_cfg = cfg.get("display", {})
+
     window_name = disp_cfg.get("window_name", "AI Demo")
-    font_scale = float(disp_cfg.get("font_scale", 0.7))
-    thickness = int(disp_cfg.get("thickness", 2))
-    draw_fps = bool(disp_cfg.get("draw_fps", True))
+    font_scale = float(disp_cfg.get("font_scale", 0.7))             # 폰트 크기
+    thickness = int(disp_cfg.get("thickness", 2))                   # 폰트 두께
+    draw_fps = bool(disp_cfg.get("draw_fps", True))                 # FPS 표시
 
-    target_fps = float(io_cfg.get("target_fps", 0) or 0)
-    warmup_frames = int(io_cfg.get("warmup_frames", 0) or 0)
-    flip_horizontal = bool(io_cfg.get("flip_horizontal", False))
+    last = time.time()  # FPS 계산용 타이머
+    fps = 0.0            # 현재 FPS
 
-    last = time.time()
-    fps_est = 0.0
-
-    frame_count = 0
     logger.info(f"VideoSource opened: fps={vs.fps:.2f} size=({vs.width}x{vs.height})")
 
     try:
         while True:
-            ok, frame, meta = vs.read()
+            ok, frame, meta = vs.read()        # 프레임 1장 읽기
             if not ok:
                 logger.info("End of stream.")
                 break
-
-            if flip_horizontal:
-                frame = cv2.flip(frame, 1)
 
             out = orch.process(frame, meta)
             
             ########################## 50프레임마다 로그 출력
             if meta.frame_idx % 50 == 0:
                 logger.info(f"frame={meta.frame_idx} ts_ms={meta.ts_ms} dets={len(out.dets)} tracks={len(out.tracks)}")
-            ########################## 나중에 지우셔
-            
-            # FPS estimate
+            ########################## 나중에 지우셔   
+
+            # FPS 계산
             now = time.time()
             dt = now - last
             last = now
             if dt > 0:
-                fps_est = 0.9 * fps_est + 0.1 * (1.0 / dt) if fps_est > 0 else (1.0 / dt)
+                fps = 1.0 / dt
 
-            # draw
+            # draw: 바운딩 박스 + ID 그리기
             _draw_tracks(frame, out.tracks, font_scale, thickness)
 
-            if draw_fps:
+            if draw_fps:    # FPS 숫자를 화면 왼쪽 위에 표시
                 cv2.putText(
                     frame,
-                    f"FPS: {fps_est:.1f}",
+                    f"FPS: {fps:.1f}",
                     (10, 30),
                     cv2.FONT_HERSHEY_SIMPLEX,
                     font_scale,
@@ -85,24 +77,14 @@ def run_loop(cfg: Dict[str, Any], source: Union[int, str], orch, show_window: bo
                     cv2.LINE_AA,
                 )
 
-            if show_window:
-                cv2.imshow(window_name, frame)
-                key = cv2.waitKey(1) & 0xFF
-                if key == 27 or key == ord("q"):
-                    logger.info("Quit requested.")
-                    break
-
-            # optional throttle
-            if target_fps > 0:
-                sleep_s = max(0.0, (1.0 / target_fps) - (time.time() - now))
-                if sleep_s > 0:
-                    time.sleep(sleep_s)
-
-            frame_count += 1
-            if warmup_frames and frame_count == warmup_frames:
-                logger.info("Warmup frames passed.")
+            if show_window:     # --no-window가 아니면
+                cv2.imshow(window_name, frame)      # 창에 프레임 표시
+                key = cv2.waitKey(1) & 0xFF         # 키 입력 대기 (1ms)
+                if key == 27 or key == ord("q"):    # ESC 또는 Q 누르면
+                    logger.info("Quit requested.") 
+                    break                           # 루프 탈출
 
     finally:
-        vs.release()
+        vs.release()    # 동영상 파일 닫기
         if show_window:
-            cv2.destroyAllWindows()
+            cv2.destroyAllWindows() # 창 닫기

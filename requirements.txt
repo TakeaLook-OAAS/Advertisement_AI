@@ -4,6 +4,7 @@
 numpy==1.26.4
 PyYAML==6.0.3
 loguru==0.7.3
+scipy>=1.11
 
 # OpenVINO runtime (CPU)
 opencv-python-headless==4.10.0.84
@@ -14,3 +15,9 @@ opencv-stubs==0.1.2
 torch==2.1.0+cpu
 torchvision==0.16.0+cpu
 sixdrepnet==0.1.6
+
+# YOLO detection
+ultralytics==8.4.14
+
+# Post-analysis charts
+matplotlib==3.10.0

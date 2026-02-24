@@ -17,7 +17,7 @@ class VideoSource:
 
     def __init__(self, source: Union[int, str]):
         self.source = source
-        self.cap = cv2.VideoCapture(source)
+        self.cap = cv2.VideoCapture(source) #int or str(경로)
         if not self.cap.isOpened():
             raise RuntimeError(f"Failed to open source: {source}")
 
@@ -29,7 +29,7 @@ class VideoSource:
         self._start_time = time.time()
 
     def read(self) -> Tuple[bool, "cv2.Mat", FrameMeta]:
-        ok, frame = self.cap.read()
+        ok, frame = self.cap.read()     # VideoCapture의 read함수의 반환값은 ret(bool)과 frame(numpy배열->ex: 1280x720x3)
         if not ok:
             meta = FrameMeta(
                 frame_idx=self._frame_idx,
