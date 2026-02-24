@@ -4,11 +4,11 @@ __pycache__/
 .env
 
 # Outputs
-data/output/
+data/output/ir/
 *.log
 
 # Large model files (recommended)
 models/headpose/weights/
 models/gaze/ir/
-models/yolo/
+models/yolo/ir/
 
