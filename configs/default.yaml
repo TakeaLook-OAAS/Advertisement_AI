@@ -10,8 +10,31 @@ display:
   window_name: "AI Demo"
   font_scale: 0.7
   thickness: 2
+  # ── tracking visualisation ───────────────────────
+  draw_tracks: true         # show active track bboxes
+  draw_track_id: true       # show "#N" label
+  draw_track_score: false   # show detection confidence in label
+  track_thickness: 2
+  draw_lost_tracks: true    # dashed bbox for occluded tracks
 
 models:
+<<<<<<< HEAD
+  # ── YOLO person detector ─────────────────────────
+  yolo:
+    enabled: true
+    model_path: "yolov8n.pt"   # auto-downloaded by ultralytics on first run
+    device: "cpu"              # cpu / cuda / mps
+    conf_thresh: 0.25
+    iou_thresh: 0.45           # NMS IoU
+    classes: [0]               # 0 = "person" in COCO
+    imgsz: 640
+
+  headpose:
+    enabled: true
+    weights_path: "models/headpose/weights/6drepnet.pth"
+    device: "cpu"              # cpu / cuda
+
+=======
   yolo:
     model: "yolov8n.pt"      # nano model (~6MB, auto-download)
     conf: 0.5                 # confidence threshold
@@ -24,16 +47,30 @@ models:
     enabled: true
     device: "cpu"             # cpu / cuda
     min_face_size: 30         # 최소 얼굴 크기 (pixel). 이보다 작으면 실패 처리
+>>>>>>> main
   gaze:
     enabled: false
     model_xml: "models/gaze/ir/gaze.xml"
+<<<<<<< HEAD
+    device: "CPU"              # OpenVINO device: CPU / GPU / AUTO
+
+# ── ByteTrack ─────────────────────────────────────────────────────────
+tracking:
+  enabled: true
+  track_thresh: 0.5      # high-confidence detection threshold
+  low_thresh: 0.1        # minimum score to feed as low-conf det
+  match_thresh: 0.65     # IoU cost threshold (1st & 2nd association)
+                         # 낮출수록 ID 유지에 유리 (고정 카메라, 작은 객체에 권장)
+  max_lost_frames: 30    # frames to retain a Lost track (occlusion budget)
+  min_hits: 1            # frames before a new track is shown (1 = instant)
+=======
     device: "CPU"             # OpenVINO device: CPU / GPU / AUTO
+>>>>>>> main
 
 logic:
   roi:
     # polygon points in image coordinates (x,y)
     polygon: [[200,200],[1000,200],[1000,650],[200,650]]
   attention:
-    # Example thresholds (tune later)
     max_yaw_abs_deg: 25
     max_pitch_abs_deg: 20
