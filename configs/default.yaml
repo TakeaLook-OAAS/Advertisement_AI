@@ -1,11 +1,9 @@
 io:
   width: 1280
   height: 720
-  target_fps: 0            # 0 = don't throttle
-  warmup_frames: 5
-  flip_horizontal: false
 
 display:
+  show_window: true
   draw_fps: true
   draw_headpose: true
   draw_gaze: true
@@ -14,14 +12,22 @@ display:
   thickness: 2
 
 models:
+  yolo:
+    model: "yolov8n.pt"      # nano model (~6MB, auto-download)
+    conf: 0.5                 # confidence threshold
+    device: "cpu"
+    classes: [0]              # 0=person in COCO
+  tracker:
+    iou_threshold: 0.3
+    max_lost: 30              # 이 프레임 수만큼 미매칭이면 track 삭제
   headpose:
     enabled: true
-    weights_path: "models/headpose/weights/6drepnet.pth"
-    device: "cpu"          # cpu / cuda
+    device: "cpu"             # cpu / cuda
+    min_face_size: 30         # 최소 얼굴 크기 (pixel). 이보다 작으면 실패 처리
   gaze:
-    enabled: true
+    enabled: false
     model_xml: "models/gaze/ir/gaze.xml"
-    device: "CPU"          # OpenVINO device: CPU / GPU / AUTO
+    device: "CPU"             # OpenVINO device: CPU / GPU / AUTO
 
 logic:
   roi:
