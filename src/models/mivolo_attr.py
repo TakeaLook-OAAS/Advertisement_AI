@@ -1,0 +1,1 @@
+# infer(frame, tracks)->Dict[track_id, PersonAttr]

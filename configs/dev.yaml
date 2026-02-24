@@ -1,13 +1,23 @@
 # Dev overrides
-include: "configs/default.yaml"
-
 source: "data/samples/test.mp4"
 
 display:
-  font_scale: 0.8
+  show_window: false
+  window_name: "AI Demo"
+  font_scale: 0.7
   thickness: 2
+  draw_fps: true
 
-logic:
-  attention:
-    max_yaw_abs_deg: 30
-    max_pitch_abs_deg: 25
+models:
+  yolo:
+    model: "yolov8n.pt"      # nano model (~6MB, auto-download)
+    conf: 0.5                 # confidence threshold
+    device: "cpu"
+    classes: [0]              # 0=person in COCO
+  tracker:
+    iou_threshold: 0.3
+    max_lost: 30              # 이 프레임 수만큼 미매칭이면 track 삭제
+  headpose:
+    device: "cpu"             # cpu / cuda
+    weights: "models/headpose/weights/6DRepNet_300W_LP_AFLW2000.pth"  # 가중치 경로
+    min_face_size: 30         # 최소 얼굴 크기 (pixel). 이보다 작으면 실패 처리

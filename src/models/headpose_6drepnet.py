@@ -1,90 +1,86 @@
+# infer(frame, track)->HeadPose
+
 from __future__ import annotations
-from typing import Dict, Any, Optional
+from typing import Any, Dict, List, Optional, Tuple
 from loguru import logger
-import numpy as np
-import cv2
+from src.utils.types import HeadPose, Track
 
-class HeadPose6DRepNet:
-    """6DRepNet wrapper (skeleton).
 
-    Replace the `infer()` implementation with your real 6DRepNet inference:
-    - load weights
-    - preprocess face crop
-    - forward pass
-    - postprocess to yaw/pitch/roll degrees
+class HeadPoseEstimator:
     """
+    6DRepNet 어댑터:
+      infer(frame, track) -> Optional[HeadPose]
+
+    sixdrepnet 패키지를 사용하여 머리 자세(yaw/pitch/roll)를 추정합니다.
+    person bbox에서 얼굴을 찾아 각도를 반환하며,
+    얼굴을 찾지 못하거나 crop이 너무 작으면 None을 반환합니다.
+    """
+
     def __init__(self, cfg: Dict[str, Any]):
-        self.cfg = cfg
-        self.enabled = bool(cfg.get("enabled", True))
-        self.weights_path = cfg.get("weights_path", "")
-        self.device = cfg.get("device", "cpu")
-        # TODO: Load actual model here.
-        logger.info(f"[HeadPose] enabled={self.enabled} device={self.device} weights={self.weights_path} (stub)")
+        from sixdrepnet import SixDRepNet
 
-        if not self.enabled:
-            logger.info("[HeadPose] disabled")
-            self.model = None
-            return
+        device_str = cfg.get("device", "cpu")
+        gpu_id = -1 if device_str == "cpu" else 0   # cpu면 -1, gpu면 0
+        self.min_face_size = int(cfg.get("min_face_size", 30))  # 최소 얼굴 크기: 30px
 
-        # (A) face detector: simple & fast
-        self.face = cv2.CascadeClassifier(
-            cv2.data.haarcascades + "haarcascade_frontalface_default.xml"
-        )
+        weights = cfg.get("weights", "models/headpose/weights/6DRepNet_300W_LP_AFLW2000.pth")
+        logger.info(f"Loading 6DRepNet model (gpu_id={gpu_id}, weights='{weights or 'auto'}')")
+        self.model = SixDRepNet(gpu_id=gpu_id, dict_path=weights)   # 가중치 다운로드
 
-        # (B) model loader (sixdrepnet)
+    def infer(self, frame, track: Track) -> Tuple[Optional[HeadPose], Optional[str]]:
+        """
+        Returns:
+            (HeadPose, None) on success
+            (None, fail_reason) on failure
+        """
+        bbox = track.bbox
+        h, w = frame.shape[:2]  # 프레임의 높이와 너비-> ex: frame.shape = (720, 1280, 3) // frame.shape[:2] = (720, 1280)
+
+        # bbox 경계를 프레임 안으로 clamp
+        y1 = max(0, bbox.y1)
+        y2 = min(h, bbox.y2)
+        x1 = max(0, bbox.x1)
+        x2 = min(w, bbox.x2)
+
+        crop_h = y2 - y1
+        crop_w = x2 - x1
+
+        if crop_h < self.min_face_size or crop_w < self.min_face_size:
+            return None, "face_too_small"
+
+        crop = frame[y1:y2, x1:x2]
+
         try:
-            from sixdrepnet import SixDRepNet
-            self.model = SixDRepNet(device=self.device)
-
-            # optional: load your custom pth if you want
-            if self.weights_path:
-                import os, torch
-                if os.path.exists(self.weights_path):
-                    sd = torch.load(self.weights_path, map_location=self.device)
-                    if isinstance(sd, dict) and "state_dict" in sd:
-                        sd = sd["state_dict"]
-                    self.model.load_state_dict(sd, strict=False)
-                    logger.info(f"[HeadPose] loaded weights: {self.weights_path}")
-                else:
-                    logger.warning(f"[HeadPose] weights not found: {self.weights_path} (using auto weights)")
-            logger.info(f"[HeadPose] enabled=True device={self.device}")
+            results = self.model.predict(crop)      # 6DRepNet에 crop 이미지 넣기
         except Exception as e:
-            logger.exception(f"[HeadPose] failed to init model: {e}")
-            self.model = None
+            logger.debug(f"6DRepNet predict error: {e}")
+            return None, "model_error"
 
-    def _detect_largest_face(self, frame_bgr: np.ndarray) -> Optional[np.ndarray]:
-        """Return cropped face image (BGR) or None."""
-        gray = cv2.cvtColor(frame_bgr, cv2.COLOR_BGR2GRAY)
-        faces = self.face.detectMultiScale(gray, scaleFactor=1.1, minNeighbors=5, minSize=(60, 60))
-        if len(faces) == 0:
-            return None
+        if results is None or len(results) == 0:    # 얼굴 못 찾음
+            return None, "no_face"
 
-        x, y, w, h = max(faces, key=lambda b: b[2] * b[3])
+        # sixdrepnet predict() 반환: (pitch_array, yaw_array, roll_array)
+        # 각각 numpy array([value], dtype=float32)
+        if len(results) == 3:
+            pitch = float(results[0])
+            yaw = float(results[1])
+            roll = float(results[2])
+        else:
+            return None, "parse_error"
 
-        # small margin so chin/forehead not clipped
-        m = int(0.15 * max(w, h))
-        x0 = max(0, x - m)
-        y0 = max(0, y - m)
-        x1 = min(frame_bgr.shape[1], x + w + m)
-        y1 = min(frame_bgr.shape[0], y + h + m)
-        return frame_bgr[y0:y1, x0:x1]
+        return HeadPose(yaw=yaw, pitch=pitch, roll=roll), None
 
-    def infer(self, frame_bgr) -> Dict[str, float]:
-        if not self.enabled or self.model is None:
-            return {"yaw": 0.0, "pitch": 0.0, "roll": 0.0}
+    def infer_batch(
+        self, frame, tracks: List[Track]
+        ) -> List[Tuple[int, Optional[HeadPose], Optional[str]]]:
+        """
+        여러 track에 대해 한 번에 headpose를 추정합니다.
 
-        face_bgr = self._detect_largest_face(frame_bgr)
-        if face_bgr is None:
-            return {"yaw": 0.0, "pitch": 0.0, "roll": 0.0}
-
-        # sixdrepnet expects RGB np.ndarray
-        face_rgb = cv2.cvtColor(face_bgr, cv2.COLOR_BGR2RGB)
-
-        yaw, pitch, roll = self.model.predict(face_rgb)  # degrees
-        return {"yaw": float(yaw), "pitch": float(pitch), "roll": float(roll)}
-
-
-    #def infer(self, frame_bgr) -> Dict[str, float]:
-        # TODO: Replace with real inference.
-        # Stub: returns near-zero pose.
-        return {"yaw": 0.0, "pitch": 0.0, "roll": 0.0}
+        Returns:
+            List of (track_id, headpose_or_none, fail_reason_or_none)
+        """
+        results = []
+        for t in tracks:
+            hp, reason = self.infer(frame, t)
+            results.append((t.track_id, hp, reason))
+        return results

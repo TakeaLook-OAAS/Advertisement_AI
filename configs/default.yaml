@@ -1,11 +1,9 @@
 io:
   width: 1280
   height: 720
-  target_fps: 0            # 0 = don't throttle
-  warmup_frames: 5
-  flip_horizontal: false
 
 display:
+  show_window: true
   draw_fps: true
   draw_headpose: true
   draw_gaze: true
@@ -20,6 +18,7 @@ display:
   draw_lost_tracks: true    # dashed bbox for occluded tracks
 
 models:
+<<<<<<< HEAD
   # ── YOLO person detector ─────────────────────────
   yolo:
     enabled: true
@@ -35,9 +34,24 @@ models:
     weights_path: "models/headpose/weights/6drepnet.pth"
     device: "cpu"              # cpu / cuda
 
-  gaze:
+=======
+  yolo:
+    model: "yolov8n.pt"      # nano model (~6MB, auto-download)
+    conf: 0.5                 # confidence threshold
+    device: "cpu"
+    classes: [0]              # 0=person in COCO
+  tracker:
+    iou_threshold: 0.3
+    max_lost: 30              # 이 프레임 수만큼 미매칭이면 track 삭제
+  headpose:
     enabled: true
+    device: "cpu"             # cpu / cuda
+    min_face_size: 30         # 최소 얼굴 크기 (pixel). 이보다 작으면 실패 처리
+>>>>>>> main
+  gaze:
+    enabled: false
     model_xml: "models/gaze/ir/gaze.xml"
+<<<<<<< HEAD
     device: "CPU"              # OpenVINO device: CPU / GPU / AUTO
 
 # ── ByteTrack ─────────────────────────────────────────────────────────
@@ -49,6 +63,9 @@ tracking:
                          # 낮출수록 ID 유지에 유리 (고정 카메라, 작은 객체에 권장)
   max_lost_frames: 30    # frames to retain a Lost track (occlusion budget)
   min_hits: 1            # frames before a new track is shown (1 = instant)
+=======
+    device: "CPU"             # OpenVINO device: CPU / GPU / AUTO
+>>>>>>> main
 
 logic:
   roi:
