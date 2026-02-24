@@ -12,3 +12,4 @@ models/headpose/weights/
 models/gaze/ir/
 models/yolo/ir/
 
+models/face_detection/ir/
