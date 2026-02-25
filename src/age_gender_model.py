@@ -21,3 +21,8 @@ class AgeGenderModel:
         gender = "Female" if gender_prob[0] > 0.5 else "Male"
 
         return age, gender
+
+# 이거 openvino로 하지 말고 mivolo로 하라고 했잖슴!!
+# minovo_attr.py에 infer(frame, tracks)->Dict[track_id, PersonAttr]이 형태로 구현하라고 친절하게 설명해줬잖슴!!
+# 어차피 test니까 상관없다만....
+# 만약에 infer함수에서 반환하는 track_id, PersonAttr가 무슨 dataclass인지 모르겠다면 types.py를 참고하셈

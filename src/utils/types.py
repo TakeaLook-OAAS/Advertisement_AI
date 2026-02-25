@@ -53,9 +53,11 @@ class Det:
 
     - bbox: 원본 프레임 기준 픽셀 좌표(xyxy)
     - cls: 클래스 id (예: YOLO 모델에서 person=0 같은 값)
+    - conf: 검출 신뢰도 (0.0 ~ 1.0)
     """
     bbox: BBoxXYXY
     cls: int
+    conf: float
 
 
 # 6DRepNet
@@ -97,6 +99,7 @@ class Track:
 
     age: int = 0
     hits: int = 0
+    conf: float = 0.0    # 트래커가 반환하는 현재 신뢰도
 
     # These are often filled by ROI/dwell logic (not tracker itself)
     in_roi: bool = False

@@ -23,8 +23,10 @@ import numpy as np
 import torch
 from loguru import logger
 
+from src.utils.types import BBoxXYXY, Det
 
-class YOLODetector:
+
+class YoloDetector:
 
     def __init__(self, cfg: Dict[str, Any]):
         self.cfg = cfg
@@ -65,18 +67,17 @@ class YOLODetector:
             logger.warning(f"[YOLO] 모델 로드 실패: {exc} → 스텁 모드")
 
     # ------------------------------------------------------------------
-    def infer(self, frame_bgr: np.ndarray) -> np.ndarray:
+    def detect(self, frame_bgr: np.ndarray) -> List[Det]:
         """
-        BGR 프레임에서 검출 수행.
+        BGR 프레임에서 검출 수행 후 List[Det]으로 반환.
 
         반환값
         ------
-        np.ndarray  shape (N, 5)  [x1, y1, x2, y2, score]
-                    dtype float64
-                    검출 없을 시 shape (0, 5) 반환.
+        List[Det]   검출된 객체 리스트 (bbox + cls + conf)
+                    검출 없을 시 빈 리스트 반환.
         """
         if not self.enabled or self.model is None:
-            return np.empty((0, 5), dtype=float)
+            return []
 
         results = self.model(
             frame_bgr,
@@ -89,8 +90,21 @@ class YOLODetector:
         )
 
         if not results or results[0].boxes is None or len(results[0].boxes) == 0:
-            return np.empty((0, 5), dtype=float)
+            return []
 
         boxes  = results[0].boxes.xyxy.cpu().numpy()                # (N, 4)
-        scores = results[0].boxes.conf.cpu().numpy().reshape(-1, 1) # (N, 1)
-        return np.hstack([boxes, scores])
+        scores = results[0].boxes.conf.cpu().numpy().reshape(-1)    # (N,)
+
+        return [
+            Det(
+                bbox=BBoxXYXY(
+                    x1=int(boxes[i, 0]),
+                    y1=int(boxes[i, 1]),
+                    x2=int(boxes[i, 2]),
+                    y2=int(boxes[i, 3]),
+                ),
+                cls=0,  # YOLO classes 필터가 이미 적용됨
+                conf=float(scores[i]),
+            )
+            for i in range(len(scores))
+        ]

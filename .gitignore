@@ -4,12 +4,13 @@ __pycache__/
 .env
 
 # Outputs
-data/output/ir/
+#data/output/       # 나중에 주석 빼셈
 *.log
 
-# Large model files (recommended)
-models/headpose/weights/
-models/gaze/ir/
-models/yolo/ir/
-
-models/face_detection/ir/
+# Large model files
+models/age_gender/*
+models/face_detection/*
+models/gaze/*
+models/headpose/*
+models/yolo/*
+!models/**/.gitkeep
