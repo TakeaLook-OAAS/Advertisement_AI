@@ -30,12 +30,12 @@ models:
 
   headpose:
     enabled: true
-    weights_path: "models/headpose/weights/6drepnet.pth"
+    weights_path: "weights/headpose/weights/6drepnet.pth"
     device: "cpu"              # cpu / cuda
 
   gaze:
     enabled: false
-    model_xml: "models/gaze/ir/gaze.xml"
+    model_xml: "weights/gaze/ir/gaze.xml"
     device: "CPU"              # OpenVINO device: CPU / GPU / AUTO
 
 # ── ByteTrack ─────────────────────────────────────────────────────────

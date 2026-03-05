@@ -14,7 +14,7 @@ display:
 models:
   yolo:
     device: "cpu"
-    model: "models/yolo/yolov8n.pt"      # nano model (~6MB, auto-download)
+    model: "weights/yolo/yolov8n.pt"      # nano model (~6MB, auto-download)
     conf: 0.5                 # confidence threshold
     classes: [0]              # 0=person in COCO
   tracker:
@@ -22,10 +22,10 @@ models:
     max_lost: 30              # 이 프레임 수만큼 미매칭이면 track 삭제
   face:
     device: "cpu"
-    model: "models/face_detection/face-detection-adas-0001.xml"
+    model: "weights/face_detection/face-detection-adas-0001.xml"
     conf_thresh: 0.5          # confidence threshold
     min_face_size: 30         # 최소 얼굴 크기 (pixel). 이보다 작으면 bbox 그대로 반환
   headpose:
     device: "cpu"             # cpu / cuda
-    weights: "models/headpose/6DRepNet_300W_LP_AFLW2000.pth"  # 가중치 경로
+    weights: "weights/headpose/6DRepNet_300W_LP_AFLW2000.pth"  # 가중치 경로
     min_face_size: 30         # 최소 얼굴 크기 (pixel). 이보다 작으면 실패 처리

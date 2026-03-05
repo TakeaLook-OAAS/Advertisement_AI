@@ -2,7 +2,7 @@ import cv2
 import numpy as np
 from openvino import Core
 
-model_path = "models/face_detection/ir/face-detection-adas-0001.xml"
+model_path = "weights/face_detection/ir/face-detection-adas-0001.xml"
 core = Core()
 model = core.read_model(model=model_path)
 compiled_model = core.compile_model(model=model, device_name="CPU")

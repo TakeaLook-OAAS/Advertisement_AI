@@ -4,7 +4,7 @@ from openvino import Core
 import os
 
 # 모델 경로
-model_path = "models/age_gender/age-gender-recognition-retail-0013.xml"
+model_path = "weights/age_gender/age-gender-recognition-retail-0013.xml"
 
 # OpenVINO Core 생성
 core = Core()

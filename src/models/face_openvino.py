@@ -10,7 +10,7 @@ from src.utils.types import BBoxXYXY, Track
 class FaceDetector:
     def __init__(self, cfg: Dict[str, Any]):
         device_str = cfg.get("device", "CPU")
-        weights = cfg.get("model", "models/face_detection/face-detection-adas-0001.xml")
+        weights = cfg.get("model", "weights/face_detection/face-detection-adas-0001.xml")
         self.conf_thresh = float(cfg.get("conf_thresh", 0.5))
         self.min_face_size = int(cfg.get("min_face_size", 30))  # 최소 얼굴 크기: 30px
 

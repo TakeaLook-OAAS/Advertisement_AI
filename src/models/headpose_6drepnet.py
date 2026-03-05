@@ -23,7 +23,7 @@ class HeadPoseEstimator:
         gpu_id = -1 if device_str == "cpu" else 0   # cpu면 -1, gpu면 0
         self.min_face_size = int(cfg.get("min_face_size", 30))  # 최소 얼굴 크기: 30px
 
-        weights = cfg.get("weights", "models/headpose/6DRepNet_300W_LP_AFLW2000.pth")
+        weights = cfg.get("weights", "weights/headpose/6DRepNet_300W_LP_AFLW2000.pth")
         logger.info(f"Loading 6DRepNet model (gpu_id={gpu_id}, weights='{weights or 'auto'}')")
         self.model = SixDRepNet(gpu_id=gpu_id, dict_path=weights)   # 가중치 다운로드
 

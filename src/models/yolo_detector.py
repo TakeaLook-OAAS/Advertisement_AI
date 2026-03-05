@@ -31,7 +31,7 @@ class YoloDetector:
     def __init__(self, cfg: Dict[str, Any]):
         self.cfg = cfg
         self.enabled     = bool(cfg.get("enabled", True))
-        self.model_path  = cfg.get("model_path", "models/yolo/yolov8n.pt")
+        self.model_path  = cfg.get("model_path", "weights/yolo/yolov8n.pt")
         self.device      = cfg.get("device", "cuda" if torch.cuda.is_available() else "cpu")
         self.conf_thresh = float(cfg.get("conf_thresh", 0.25))
         self.iou_thresh  = float(cfg.get("iou_thresh",  0.45))

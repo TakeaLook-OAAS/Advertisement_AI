@@ -30,7 +30,7 @@ OUTPUT_VIDEO = "data/output/tracking_test.mp4"
 
 YOLO_CFG = {
     "enabled":     True,
-    "model_path":  "models/yolo/yolov8n.pt",
+    "model_path":  "weights/yolo/yolov8n.pt",
     "device":      "cpu",
     "conf_thresh": 0.25,
     "iou_thresh":  0.45,
