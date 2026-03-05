@@ -1,58 +1,59 @@
-# run_loop(cfg, src, orch, show_window) 구현
+# run_loop(cfg, src, orch) 구현
 # 여기서만 while 루프 돌고, 매 프레임 orch.process(frame, meta) 호출
 
 from __future__ import annotations
+import os
 import time
 from typing import Any, Dict, Union
 import cv2
 from loguru import logger
 from src.io.video_source import VideoSource
-from src.utils.types import Track
+from src.vision.draw import draw_tracks, draw_fps, draw_headpose, draw_headpose_vector
 
 
-def _draw_tracks(frame, tracks: list[Track], font_scale: float, thickness: int) -> None:
-    for t in tracks:
-        x1, y1, x2, y2 = t.bbox.x1, t.bbox.y1, t.bbox.x2, t.bbox.y2
-        cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 255, 0), thickness)
-        cv2.putText(
-            frame,
-            f"id={t.track_id}",
-            (x1, max(0, y1 - 5)),
-            cv2.FONT_HERSHEY_SIMPLEX,
-            font_scale,
-            (0, 255, 0),
-            thickness,
-            cv2.LINE_AA,
-        )
-
-
-def run_loop(cfg: Dict[str, Any], source: Union[int, str], orch, show_window: bool = True) -> None:
+def run_loop(cfg: Dict[str, Any], source: Union[int, str], orch) -> None:
     vs = VideoSource(source)
 
     disp_cfg = cfg.get("display", {})
 
-    window_name = disp_cfg.get("window_name", "AI Demo")
     font_scale = float(disp_cfg.get("font_scale", 0.7))             # 폰트 크기
     thickness = int(disp_cfg.get("thickness", 2))                   # 폰트 두께
-    draw_fps = bool(disp_cfg.get("draw_fps", True))                 # FPS 표시
+    show_bbox = bool(disp_cfg.get("draw_bbox", True))               # bbox 표시
+    show_fps = bool(disp_cfg.get("draw_fps", True))                 # FPS 표시
+    show_headpose = bool(disp_cfg.get("draw_headpose", True))       # headpose 표시
+    show_headpose_vector = bool(disp_cfg.get("draw_headpose_vector", True)) # headpose vector 표시
+
+    # ── 비디오 출력 설정 ─────────────────────────────────────────────
+    output_video = bool(disp_cfg.get("output_video", True))
+    output_path = disp_cfg.get("output_video_path", "data/output/output.mp4")
+    writer = None
+
+    if output_video:
+        os.makedirs(os.path.dirname(output_path), exist_ok=True)    # 출력 폴더 자동 생성
+        fourcc = cv2.VideoWriter_fourcc(*"mp4v")
+        writer = cv2.VideoWriter(output_path, fourcc, vs.fps, (vs.width, vs.height))
+        logger.info(f"Video output enabled: {output_path}")
 
     last = time.time()  # FPS 계산용 타이머
-    fps = 0.0            # 현재 FPS
+    fps = 0.0           # 현재 FPS
 
     logger.info(f"VideoSource opened: fps={vs.fps:.2f} size=({vs.width}x{vs.height})")
 
     try:
         while True:
             ok, frame, meta = vs.read()        # 프레임 1장 읽기
+            if meta.frame_idx > 10:
+                break
+            
             if not ok:
                 logger.info("End of stream.")
                 break
 
             out = orch.process(frame, meta)
             
-            ########################## 50프레임마다 로그 출력
-            if meta.frame_idx % 50 == 0:
-                logger.info(f"frame={meta.frame_idx} ts_ms={meta.ts_ms} dets={len(out.dets)} tracks={len(out.tracks)}")
+            ########################## 1프레임마다 로그 출력   
+            if meta.frame_idx % 1 == 0:
+                logger.info(f"frame={meta.frame_idx} ts_ms={meta.ts_ms} dets={out.dets} tracks={out.tracks} hp_results={out.hp_results}")
             ########################## 나중에 지우셔   
 
             # FPS 계산
@@ -62,29 +63,22 @@ def run_loop(cfg: Dict[str, Any], source: Union[int, str], orch, show_window: bo
             if dt > 0:
                 fps = 1.0 / dt
 
-            # draw: 바운딩 박스 + ID 그리기
-            _draw_tracks(frame, out.tracks, font_scale, thickness)
+            # draw: 바운딩 박스 + ID + headpose + FPS
+            if show_bbox:
+                draw_tracks(frame, out.tracks, font_scale, thickness)
+            if show_headpose:
+                draw_headpose(frame, out.hp_results, out.tracks, font_scale, thickness)
+            if show_headpose_vector:
+                draw_headpose_vector(frame, out.hp_results, out.tracks)
+            if show_fps:
+                draw_fps(frame, fps, font_scale, thickness)
 
-            if draw_fps:    # FPS 숫자를 화면 왼쪽 위에 표시
-                cv2.putText(
-                    frame,
-                    f"FPS: {fps:.1f}",
-                    (10, 30),
-                    cv2.FONT_HERSHEY_SIMPLEX,
-                    font_scale,
-                    (255, 255, 255),
-                    thickness,
-                    cv2.LINE_AA,
-                )
-
-            if show_window:     # --no-window가 아니면
-                cv2.imshow(window_name, frame)      # 창에 프레임 표시
-                key = cv2.waitKey(1) & 0xFF         # 키 입력 대기 (1ms)
-                if key == 27 or key == ord("q"):    # ESC 또는 Q 누르면
-                    logger.info("Quit requested.") 
-                    break                           # 루프 탈출
+            # 비디오 파일로 기록
+            if writer is not None:
+                writer.write(frame)
 
     finally:
+        if writer is not None:
+            writer.release()
+            logger.info(f"Output video saved: {output_path}")
         vs.release()    # 동영상 파일 닫기
-        if show_window:
-            cv2.destroyAllWindows() # 창 닫기

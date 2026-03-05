@@ -23,7 +23,7 @@ class HeadPoseEstimator:
         gpu_id = -1 if device_str == "cpu" else 0   # cpu면 -1, gpu면 0
         self.min_face_size = int(cfg.get("min_face_size", 30))  # 최소 얼굴 크기: 30px
 
-        weights = cfg.get("weights", "models/headpose/weights/6DRepNet_300W_LP_AFLW2000.pth")
+        weights = cfg.get("weights", "models/headpose/6DRepNet_300W_LP_AFLW2000.pth")
         logger.info(f"Loading 6DRepNet model (gpu_id={gpu_id}, weights='{weights or 'auto'}')")
         self.model = SixDRepNet(gpu_id=gpu_id, dict_path=weights)   # 가중치 다운로드
 
@@ -33,22 +33,14 @@ class HeadPoseEstimator:
             (HeadPose, None) on success
             (None, fail_reason) on failure
         """
-        bbox = track.bbox
-        h, w = frame.shape[:2]  # 프레임의 높이와 너비-> ex: frame.shape = (720, 1280, 3) // frame.shape[:2] = (720, 1280)
-
-        # bbox 경계를 프레임 안으로 clamp
-        y1 = max(0, bbox.y1)
-        y2 = min(h, bbox.y2)
-        x1 = max(0, bbox.x1)
-        x2 = min(w, bbox.x2)
-
-        crop_h = y2 - y1
-        crop_w = x2 - x1
+        bbox = track.crop_bbox if track.crop_bbox is not None else track.bbox
+        crop_h = bbox.y2 - bbox.y1
+        crop_w = bbox.x2 - bbox.x1
 
         if crop_h < self.min_face_size or crop_w < self.min_face_size:
-            return None, "face_too_small"
+            return None, "bbox_too_small"
 
-        crop = frame[y1:y2, x1:x2]
+        crop = frame[bbox.y1:bbox.y2, bbox.x1:bbox.x2]
 
         try:
             results = self.model.predict(crop)      # 6DRepNet에 crop 이미지 넣기
@@ -70,9 +62,7 @@ class HeadPoseEstimator:
 
         return HeadPose(yaw=yaw, pitch=pitch, roll=roll), None
 
-    def infer_batch(
-        self, frame, tracks: List[Track]
-        ) -> List[Tuple[int, Optional[HeadPose], Optional[str]]]:
+    def infer_batch(self, frame, tracks: List[Track]) -> List[Tuple[int, Optional[HeadPose], Optional[str]]]:
         """
         여러 track에 대해 한 번에 headpose를 추정합니다.
 

@@ -43,8 +43,8 @@ class BBoxXYXY:
     def area(self) -> int:
         return self.w() * self.h()
 
-    def center(self) -> Tuple[float, float]:
-        return (self.x1 + self.x2) / 2.0, (self.y1 + self.y2) / 2.0
+    def center(self) -> Tuple[int, int]:
+        return (self.x1 + self.x2) // 2, (self.y1 + self.y2) // 2
 
 @dataclass(frozen=True)
 class Det:
@@ -87,6 +87,7 @@ class Track:
 
     - track_id: 지속적으로 유지되는 ID
     - bbox: 원본 프레임 기준 픽셀 좌표(xyxy)
+    - crop_bbox: 얼굴 영역 기준 픽셀 좌표(xyxy)
     - age: 처음 등장한 이후 경과한 프레임 수
     - hits: 매칭/확정된 프레임 수
 
@@ -96,6 +97,7 @@ class Track:
     """
     track_id: int
     bbox: BBoxXYXY
+    crop_bbox: Optional[BBoxXYXY] = None
 
     age: int = 0
     hits: int = 0

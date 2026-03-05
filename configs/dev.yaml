@@ -1,23 +1,31 @@
 # Dev overrides
-source: "data/samples/test.mp4"
+source: "data/samples/test2.mp4"
 
 display:
-  show_window: false
-  window_name: "AI Demo"
-  font_scale: 0.7
-  thickness: 2
+  output_video: true
+  output_video_path: "data/output/output_10fps.mp4"
+  font_scale: 2.0
+  thickness: 5
+  draw_bbox: true
   draw_fps: true
+  draw_headpose: true
+  draw_headpose_vector: true
 
 models:
   yolo:
-    model: "yolov8n.pt"      # nano model (~6MB, auto-download)
-    conf: 0.5                 # confidence threshold
     device: "cpu"
+    model: "models/yolo/yolov8n.pt"      # nano model (~6MB, auto-download)
+    conf: 0.5                 # confidence threshold
     classes: [0]              # 0=person in COCO
   tracker:
     iou_threshold: 0.3
     max_lost: 30              # 이 프레임 수만큼 미매칭이면 track 삭제
+  face:
+    device: "cpu"
+    model: "models/face_detection/face-detection-adas-0001.xml"
+    conf_thresh: 0.5          # confidence threshold
+    min_face_size: 30         # 최소 얼굴 크기 (pixel). 이보다 작으면 bbox 그대로 반환
   headpose:
     device: "cpu"             # cpu / cuda
-    weights: "models/headpose/weights/6DRepNet_300W_LP_AFLW2000.pth"  # 가중치 경로
+    weights: "models/headpose/6DRepNet_300W_LP_AFLW2000.pth"  # 가중치 경로
     min_face_size: 30         # 최소 얼굴 크기 (pixel). 이보다 작으면 실패 처리
