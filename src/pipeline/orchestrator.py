@@ -12,18 +12,19 @@
 
 from __future__ import annotations
 from dataclasses import dataclass
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional, Tuple
 from src.models.bytetrack_tracker import ByteTrackTracker
+from src.models.face_openvino import FaceDetector
 from src.models.yolo_detector import YoloDetector
 from src.models.headpose_6drepnet import HeadPoseEstimator
-from src.utils.types import Det, FrameMeta, Track
+from src.utils.types import Det, FrameMeta, HeadPose, Track
 
 
 @dataclass
 class OrchestratorOutput:
     dets: List[Det]
     tracks: List[Track]
-
+    hp_results: List[Tuple[int, Optional[HeadPose], Optional[str]]]
 
 class Orchestrator:
     """
@@ -35,6 +36,7 @@ class Orchestrator:
         self.cfg = cfg
         self.detector = YoloDetector(cfg.get("models", {}).get("yolo", {}))
         self.tracker = ByteTrackTracker(cfg.get("models", {}).get("tracker", {}))
+        self.face = FaceDetector(cfg.get("models", {}).get("face", {}))
         self.headpose = HeadPoseEstimator(cfg.get("models", {}).get("headpose", {}))
 
     def process(self, frame, meta: FrameMeta) -> OrchestratorOutput:
@@ -44,7 +46,12 @@ class Orchestrator:
         # 2) track
         tracks = self.tracker.update(dets)
 
-        # 4) headpose (TODO: per-track crop → headpose)
+        # 3) crop face
+        tracks = self.face.detect_batch(frame, tracks)
+
+        # 4) headpose
+        hp_results = self.headpose.infer_batch(frame, tracks)
+
         # 5) gaze     (TODO: gaze_openvino 구현 후)
         # 6) attention (TODO: headpose 기반 판정)
-        return OrchestratorOutput(dets=dets, tracks=tracks)
+        return OrchestratorOutput(dets=dets, tracks=tracks, hp_results=hp_results)

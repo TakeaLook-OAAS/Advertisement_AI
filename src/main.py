@@ -11,12 +11,10 @@ def main():
     if isinstance(src, str) and src.isdigit():
         src = int(src)
 
-    show_window = cfg.get("display", {}).get("show_window", True)
-
     logger.info(f"Source: {src}")
 
     orch = Orchestrator(cfg)
-    run_loop(cfg, src, orch, show_window=show_window)
+    run_loop(cfg, src, orch)
 
 if __name__ == "__main__":
     main()
