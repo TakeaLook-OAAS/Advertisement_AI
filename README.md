@@ -4,41 +4,24 @@ CCTV/카메라 영상에서 **사람 검출 → 추적 → 얼굴 검출 → 머
 
 ## 파이프라인 개요
 
-```
-영상 입력 (MP4 / 웹캠)
-  │
-  ▼  매 프레임마다 Orchestrator.process(frame, meta)
-┌────────────────────────────────────────────────────────────────┐
-│                                                                │
-│  1) YOLO 사람 검출        yolo_detector.py                     │
-│     frame → List[Det]    (person bbox + confidence)            │
-│         │                                                      │
-│  2) ByteTrack 추적       bytetrack_tracker.py                  │
-│     List[Det] → List[Track]  (track_id + bbox 유지)            │
-│         │                                                      │
-│  3) 얼굴 검출 (OpenVINO)  face_openvino.py                     │
-│     person bbox crop → face detection → Track.crop_bbox 갱신   │
-│         │                                                      │
-│  4) 머리 방향 추정        headpose_6drepnet.py                  │
-│     crop_bbox crop → 6DRepNet → yaw/pitch/roll                 │
-│         │                                                      │
-│  5) 시선 추정 (TODO)      gaze_openvino.py                     │
-│     양쪽 눈 + headpose → 3D 시선 벡터                           │
-│         │                                                      │
-│  6) 광고 시청 판정         logic/attention.py, look_judge.py    │
-│     yaw/pitch 임계값 또는 시선 벡터 코사인 유사도 기반 판정       │
-│         │                                                      │
-│  7) ROI/체류 판정          logic/roi.py, stay.py                │
-│     bbox 중심점이 ROI 폴리곤 안에 있는지 + 체류 시간 계산         │
-│         │                                                      │
-│  8) 이벤트/통계 기록       logic/status.py                      │
-│     이벤트 기반 로깅 (JSONL) → 일/주/월 집계                     │
-│                                                                │
-└────────────────────────────────────────────────────────────────┘
-  │
-  ▼
-출력: 시각화 비디오 (MP4) + 이벤트 로그 + 통계
-```
+매 프레임마다 `Orchestrator.process(frame, meta)` 실행:
+
+1. **YOLO 사람 검출** — `yolo_detector.py`
+   - frame → `List[Det]` (person bbox + confidence)
+2. **ByteTrack 추적** — `bytetrack_tracker.py`
+   - `List[Det]` → `List[Track]` (track_id + bbox 유지)
+3. **얼굴 검출 (OpenVINO)** — `face_openvino.py`
+   - person bbox crop → face detection → `Track.crop_bbox` 갱신
+4. **머리 방향 추정** — `headpose_6drepnet.py`
+   - crop_bbox crop → 6DRepNet → yaw / pitch / roll
+5. **시선 추정** — `gaze_openvino.py`
+   - 양쪽 눈 + headpose → 3D 시선 벡터
+6. **광고 시청 판정** — `logic/attention.py`, `look_judge.py`
+   - yaw/pitch 임계값 또는 시선 벡터 코사인 유사도 기반 판정
+7. **ROI/체류 판정** — `logic/roi.py`, `stay.py`
+   - bbox 중심점이 ROI 폴리곤 안에 있는지 + 체류 시간 계산
+8. **이벤트/통계 기록** — `logic/status.py`
+   - 이벤트 기반 로깅 (JSONL) → 일/주/월 집계
 
 ## 프로젝트 구조
 
@@ -82,7 +65,7 @@ Advertisement_AI/
     └── Dockerfile            # Docker 빌드 설정
 ```
 
-## 핵심 데이터 흐름
+## 데이터 흐름
 
 각 단계의 **입력 → 출력** 데이터 타입:
 
@@ -96,14 +79,6 @@ Advertisement_AI/
 | 6. 시청 판정 | `attention.py` | `HeadPose` | `bool` (보고 있는지) |
 | 7. 체류 판정 | `roi.py` + `stay.py` | `Track, ROI` | `in_roi, dwell_frames` |
 | 8. 통계 기록 | `status.py` | `Event` | JSONL 로그 |
-
-## Track의 bbox vs crop_bbox
-
-```
-Track.bbox      = YOLO가 검출한 사람 전체 영역 (원본 유지)
-Track.crop_bbox = FaceDetector가 찾은 얼굴 영역 (Optional, 없으면 None)
-                  → HeadPose에서 사용. None이면 bbox로 대체
-```
 
 ## 사용되는 모델
 
