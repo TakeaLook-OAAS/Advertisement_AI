@@ -1,12 +1,13 @@
 # Dev overrides
-source: "data/samples/test2.mp4"
+source: "data/samples/test4.mp4"
 
 display:
   output_video: true
-  output_video_path: "data/output/output_10fps.mp4"
-  font_scale: 2.0
-  thickness: 5
+  output_video_path: "data/output/output_crop_bbox_test4.mp4"
+  font_scale: 0.7
+  thickness: 2
   draw_bbox: true
+  draw_crop_bbox: true
   draw_fps: true
   draw_headpose: true
   draw_headpose_vector: true
@@ -21,7 +22,7 @@ models:
     iou_threshold: 0.3
     max_lost: 30              # 이 프레임 수만큼 미매칭이면 track 삭제
   face:
-    device: "cpu"
+    device: "CPU"
     model: "weights/face_detection/face-detection-adas-0001.xml"
     conf_thresh: 0.5          # confidence threshold
     min_face_size: 30         # 최소 얼굴 크기 (pixel). 이보다 작으면 bbox 그대로 반환

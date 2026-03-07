@@ -12,7 +12,7 @@ class FaceDetector:
         device_str = cfg.get("device", "CPU")
         weights = cfg.get("model", "weights/face_detection/face-detection-adas-0001.xml")
         self.conf_thresh = float(cfg.get("conf_thresh", 0.5))
-        self.min_face_size = int(cfg.get("min_face_size", 30))  # 최소 얼굴 크기: 30px
+        self.min_face_size = int(cfg.get("min_face_size", 30))  # 최소 얼굴 크기: 30px -> AP(head height > 32px): 84.8%
 
         core = Core()
         model = core.read_model(model=weights)
@@ -25,31 +25,28 @@ class FaceDetector:
         person bbox 안에서 얼굴을 찾아 track.crop_bbox를 갱신합니다.
         얼굴을 찾지 못하면 crop_bbox를 person bbox(원래 값) 그대로 유지합니다.
         """
-        h, w = frame.shape[:2]
         bbox = track.bbox
 
-        # 1) person bbox를 프레임 안으로 clamp 후 crop
-        y1 = max(0, bbox.y1)
-        y2 = min(h, bbox.y2)
-        x1 = max(0, bbox.x1)
-        x2 = min(w, bbox.x2)
-
-        crop_h = y2 - y1
-        crop_w = x2 - x1
-        if crop_h < self.min_face_size or crop_w < self.min_face_size:
+        h = bbox.h()
+        w = bbox.w()
+        if h < self.min_face_size or w < self.min_face_size:
             return track  # crop이 너무 작으면 그대로 반환
 
-        person_crop = frame[y1:y2, x1:x2]
+        person_crop = frame[bbox.y1:bbox.y2, bbox.x1:bbox.x2]
 
         # 2) face detection 모델 입력 준비 (face-detection-adas-0001: 672x384)
         resized = cv2.resize(person_crop, (672, 384))
         input_image = resized.transpose((2, 0, 1))          # HWC → CHW
-        input_image = np.expand_dims(input_image, axis=0)    # 배치 차원 추가
-
+        input_image = np.expand_dims(input_image, axis=0)   # 배치 차원 추가
+        # 입력 shape: 1, 3, 384, 672 (batch size, number of channels,  image height, image width)
+        
         # 3) 추론
-        results = self.compiled_model([input_image])[self.output_layer]
+        infer_result = self.compiled_model([input_image])   # OVDict: 레이어가 여러 개일 수 있기 때문에 딕셔너리(키-값)로 반환
+        results = infer_result[self.output_layer]
+        # face-detection-adas-0001은 출력 레이어가 1개라 results = self.compiled_model([input_image])[0] 이래도 됨
+        # 출력 shape: 1, 1, N, 7
 
-        # 4) 가장 confidence 높은 얼굴 하나 선택
+        # 4) N개 중 confidence 가장 높은 얼굴 하나 선택
         best_conf = 0.0
         best_box = None
         # detection: [image_id, label, confidence, x_min, y_min, x_max, y_max]
@@ -57,24 +54,23 @@ class FaceDetector:
             confidence = float(detection[2])
             if confidence > self.conf_thresh and confidence > best_conf:
                 best_conf = confidence
-                # detection[3..6]은 person_crop 기준 비율 좌표(0~1)
-                fx1 = int(detection[3] * crop_w)
-                fy1 = int(detection[4] * crop_h)
-                fx2 = int(detection[5] * crop_w)
-                fy2 = int(detection[6] * crop_h)
+                # x_min, y_min, x_max, y_max은 person_crop 기준 0~1 사이의 비율
+                fx1 = int(detection[3] * w)
+                fy1 = int(detection[4] * h)
+                fx2 = int(detection[5] * w)
+                fy2 = int(detection[6] * h)
                 best_box = (fx1, fy1, fx2, fy2)
 
         if best_box is None:
             return track  # 얼굴 못 찾음 → crop_bbox 유지
 
-        fx1, fy1, fx2, fy2 = best_box
-
-        # 5) person_crop 좌표 → 원본 프레임 좌표로 변환
+        # 5) person_crop 좌표 → 원본 프레임 좌표로 변환 (프레임 범위로)
+        fh, fw = frame.shape[:2]
         face_bbox = BBoxXYXY(
-            x1=x1 + fx1,
-            y1=y1 + fy1,
-            x2=x1 + fx2,
-            y2=y1 + fy2,
+            x1=max(0, min(bbox.x1 + fx1, fw)),
+            y1=max(0, min(bbox.y1 + fy1, fh)),
+            x2=max(0, min(bbox.x1 + fx2, fw)),
+            y2=max(0, min(bbox.y1 + fy2, fh)),
         )
 
         # 6) track의 crop_bbox를 얼굴 좌표로 갱신
@@ -89,6 +85,6 @@ class FaceDetector:
         Returns
         -------
         List[Track]
-            crop_bbox가 갱신된 트랙 리스트 (headpose에 그대로 전달 가능)
+            crop_bbox가 갱신된 트랙 리스트
         """
         return [self.detect(frame, t) for t in tracks]

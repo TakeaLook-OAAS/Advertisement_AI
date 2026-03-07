@@ -6,7 +6,7 @@ import math
 from src.utils.types import HeadPose, Track
 
 
-# ── 색상 팔레트 (track_id별 고유 색상, 20색 순환) ──────────────────────
+# 색상 팔레트 (track_id별 고유 색상, 20색 순환)
 _PALETTE: List[Tuple[int, int, int]] = [
     (56,  56,  255), (151, 157, 255), (31, 112,  255), (29, 178,  255),
     (49, 210,  207), (10, 249,  72),  (23, 204,  146), (134, 219,  61),
@@ -21,7 +21,7 @@ def _id_color(track_id: int) -> Tuple[int, int, int]:
     return _PALETTE[track_id % len(_PALETTE)]
 
 
-# ── 바운딩 박스 + ID 그리기 ─────────────────────────────────────────────
+# bbox + ID 그리기
 def draw_tracks(
     frame: np.ndarray,
     tracks: List[Track],
@@ -53,7 +53,30 @@ def draw_tracks(
         )
 
 
-# ── FPS 표시 ───────────────────────────────────────────────────────────
+# crop_bbox 그리기
+def draw_crop_bbox(
+    frame: np.ndarray,
+    tracks: List[Track],
+    thickness: int = 2,
+) -> None:
+    """각 Track의 crop_bbox(얼굴 영역)를 프레임 위에 그린다."""
+    for t in tracks:
+        if t.crop_bbox is None:
+            continue
+        color = _id_color(t.track_id)
+        x1, y1, x2, y2 = t.crop_bbox.x1, t.crop_bbox.y1, t.crop_bbox.x2, t.crop_bbox.y2
+
+        cv2.rectangle(
+            img=frame,
+            pt1=(x1, y1),
+            pt2=(x2, y2),
+            color=color,
+            thickness=thickness,
+            lineType=cv2.LINE_8,
+        )
+
+
+# FPS 표시
 def draw_fps(
     frame: np.ndarray,
     fps: float,
@@ -73,7 +96,7 @@ def draw_fps(
     )
 
 
-# ── Headpose 각도 표시 ─────────────────────────────────────────────────
+# Headpose 각도 표시
 def draw_headpose(
     frame: np.ndarray,
     hp_results: List[Tuple[int, Optional[HeadPose], Optional[str]]],
@@ -116,7 +139,7 @@ def draw_headpose(
         )
 
 
-# ── Headpose 벡터 표시 ─────────────────────────────────────────────────
+# Headpose 벡터 표시
 def draw_headpose_vector(
     frame: np.ndarray,
     hp_results: List[Tuple[int, Optional[HeadPose], Optional[str]]],
@@ -126,7 +149,9 @@ def draw_headpose_vector(
     bbox_map = {}
     for t in tracks:
         tid = t.track_id   # 사람/트랙 고유 ID
-        bbox = t.bbox      # 그 트랙의 박스 좌표
+        # crop_bbox = t.crop_bbox if t.crop_bbox is not None else t.bbox
+        # bbox = crop_bbox
+        bbox = t.crop_bbox  # 그 트랙의 박스 좌표
         bbox_map[tid] = bbox
 
     for track_id, hp, reason in hp_results:
@@ -136,8 +161,8 @@ def draw_headpose_vector(
 
         if hp is not None:
             cx, cy = bbox.center()  # bbox 중앙 좌표
-            arrow_len = min(bbox.w(), bbox.h()) // 4    # 화살표 길이 (bbox 크기의 1/4)
-            dx = int(arrow_len * math.sin(math.radians(hp.yaw)))    # yaw → 좌우(X) 이동량
+            arrow_len = min(bbox.w(), bbox.h())# // 4    # 화살표 길이 (bbox 크기의 1/4)
+            dx = int(-arrow_len * math.sin(math.radians(hp.yaw)))    # yaw → 좌우(X) 이동량
             dy = int(-arrow_len * math.sin(math.radians(hp.pitch)))   # pitch → 상하(Y) 이동량
             color = _id_color(track_id)
         else:
@@ -152,3 +177,4 @@ def draw_headpose_vector(
             line_type=cv2.LINE_AA,
             tipLength=0.3,
         )
+

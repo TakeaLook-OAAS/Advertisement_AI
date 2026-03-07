@@ -8,7 +8,7 @@ from typing import Any, Dict, Union
 import cv2
 from loguru import logger
 from src.io.video_source import VideoSource
-from src.vision.draw import draw_tracks, draw_fps, draw_headpose, draw_headpose_vector
+from src.vision.draw import draw_tracks, draw_fps, draw_headpose, draw_headpose_vector, draw_crop_bbox
 
 
 def run_loop(cfg: Dict[str, Any], source: Union[int, str], orch) -> None:
@@ -19,6 +19,7 @@ def run_loop(cfg: Dict[str, Any], source: Union[int, str], orch) -> None:
     font_scale = float(disp_cfg.get("font_scale", 0.7))             # 폰트 크기
     thickness = int(disp_cfg.get("thickness", 2))                   # 폰트 두께
     show_bbox = bool(disp_cfg.get("draw_bbox", True))               # bbox 표시
+    show_crop_bbox = bool(disp_cfg.get("draw_crop_bbox", True))     # crop_bbox 표시
     show_fps = bool(disp_cfg.get("draw_fps", True))                 # FPS 표시
     show_headpose = bool(disp_cfg.get("draw_headpose", True))       # headpose 표시
     show_headpose_vector = bool(disp_cfg.get("draw_headpose_vector", True)) # headpose vector 표시
@@ -42,8 +43,9 @@ def run_loop(cfg: Dict[str, Any], source: Union[int, str], orch) -> None:
     try:
         while True:
             ok, frame, meta = vs.read()        # 프레임 1장 읽기
-            if meta.frame_idx > 10:
-                break
+            #if meta.frame_idx > 150:
+            #    logger.info("End of stream.")
+            #    break
             
             if not ok:
                 logger.info("End of stream.")
@@ -51,8 +53,8 @@ def run_loop(cfg: Dict[str, Any], source: Union[int, str], orch) -> None:
 
             out = orch.process(frame, meta)
             
-            ########################## 1프레임마다 로그 출력   
-            if meta.frame_idx % 1 == 0:
+            ########################## 30프레임마다 로그 출력   
+            if meta.frame_idx % 30 == 0:
                 logger.info(f"frame={meta.frame_idx} ts_ms={meta.ts_ms} dets={out.dets} tracks={out.tracks} hp_results={out.hp_results}")
             ########################## 나중에 지우셔   
 
@@ -66,12 +68,14 @@ def run_loop(cfg: Dict[str, Any], source: Union[int, str], orch) -> None:
             # draw: 바운딩 박스 + ID + headpose + FPS
             if show_bbox:
                 draw_tracks(frame, out.tracks, font_scale, thickness)
+            if show_crop_bbox:
+                draw_crop_bbox(frame, out.tracks, thickness)
+            if show_fps:
+                draw_fps(frame, fps, font_scale, thickness)
             if show_headpose:
                 draw_headpose(frame, out.hp_results, out.tracks, font_scale, thickness)
             if show_headpose_vector:
                 draw_headpose_vector(frame, out.hp_results, out.tracks)
-            if show_fps:
-                draw_fps(frame, fps, font_scale, thickness)
 
             # 비디오 파일로 기록
             if writer is not None:
