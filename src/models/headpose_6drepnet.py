@@ -62,7 +62,7 @@ class HeadPoseEstimator:
 
         # logger.debug(f"[HeadPose] yaw={yaw:+.1f}, pitch={pitch:+.1f}, roll={roll:+.1f}")
         # yaw가 음수면 오른쪽, 양수면 왼쪽 / pitch가 음수면 아래, 양수면 위
-        return HeadPose(yaw=yaw, pitch=pitch, roll=roll), None
+        return HeadPose(yaw=-yaw, pitch=pitch, roll=roll), None
 
     def infer_batch(self, frame, tracks: List[Track]) -> List[Tuple[int, Optional[HeadPose], Optional[str]]]:
         """

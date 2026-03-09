@@ -3,7 +3,7 @@ from typing import Dict, List, Optional, Tuple
 import cv2
 import numpy as np
 import math
-from src.utils.types import HeadPose, Track
+from src.utils.types import HeadPose, Track, Gaze, LookResult
 
 
 # 색상 팔레트 (track_id별 고유 색상, 20색 순환)
@@ -96,27 +96,29 @@ def draw_fps(
     )
 
 
-# Headpose 각도 표시
+# Headpose 각도 + vector 표시
 def draw_headpose(
     frame: np.ndarray,
-    hp_results: List[Tuple[int, Optional[HeadPose], Optional[str]]],
+    headposes: List[Tuple[int, Optional[HeadPose], Optional[str]]],
     tracks: List[Track],
     font_scale: float = 0.45,
     thickness: int = 1,
 ) -> None:
     """
-    각 Track의 bbox 아래쪽에 headpose 각도(yaw/pitch/roll) 텍스트를 표시한다.
+    각 Track의 bbox 아래쪽에 headpose 각도(yaw/pitch/roll) 텍스트와 vector를 표시한다.
     headpose가 None이면 실패 사유(reason)를 표시한다.
     """
-    # track_id -> bbox 빠른 조회용
+    # track_id -> bbox, crop_bbox 빠른 조회용
     bbox_map = {}
+    crop_map = {}
     for t in tracks:
-        tid = t.track_id   # 사람/트랙 고유 ID
-        bbox = t.bbox      # 그 트랙의 박스 좌표
-        bbox_map[tid] = bbox
+        tid = t.track_id
+        bbox_map[tid] = t.bbox
+        crop_map[tid] = t.crop_bbox if t.crop_bbox is not None else t.bbox
 
-    for track_id, hp, reason in hp_results:
+    for track_id, hp, reason in headposes:
         bbox = bbox_map.get(track_id)
+        crop = crop_map.get(track_id)
         if bbox is None:
             continue
 
@@ -138,33 +140,12 @@ def draw_headpose(
             lineType=cv2.LINE_AA,
         )
 
-
-# Headpose 벡터 표시
-def draw_headpose_vector(
-    frame: np.ndarray,
-    hp_results: List[Tuple[int, Optional[HeadPose], Optional[str]]],
-    tracks: List[Track],
-) -> None:
-    # track_id -> bbox 빠른 조회용
-    bbox_map = {}
-    for t in tracks:
-        tid = t.track_id   # 사람/트랙 고유 ID
-        # crop_bbox = t.crop_bbox if t.crop_bbox is not None else t.bbox
-        # bbox = crop_bbox
-        bbox = t.crop_bbox  # 그 트랙의 박스 좌표
-        bbox_map[tid] = bbox
-
-    for track_id, hp, reason in hp_results:
-        bbox = bbox_map.get(track_id)
-        if bbox is None:
-            continue
-
+        # headpose vector 표시
         if hp is not None:
-            cx, cy = bbox.center()  # bbox 중앙 좌표
-            arrow_len = min(bbox.w(), bbox.h())# // 4    # 화살표 길이 (bbox 크기의 1/4)
-            dx = int(-arrow_len * math.sin(math.radians(hp.yaw)))    # yaw → 좌우(X) 이동량
+            cx, cy = crop.center()  # crop_bbox 중앙 좌표
+            arrow_len = min(crop.w(), crop.h())  # 화살표 길이
+            dx = int(arrow_len * math.sin(math.radians(hp.yaw)))    # yaw → 좌우(X) 이동량
             dy = int(-arrow_len * math.sin(math.radians(hp.pitch)))   # pitch → 상하(Y) 이동량
-            color = _id_color(track_id)
         else:
             continue
 
@@ -178,3 +159,108 @@ def draw_headpose_vector(
             tipLength=0.3,
         )
 
+
+# Gaze 벡터 표시
+def draw_gaze(
+    frame: np.ndarray,
+    gazes: List[Gaze],
+    tracks: List[Track],
+    font_scale: float = 0.45,
+    thickness: int = 1,
+) -> None:
+    """
+    각 Track의 양쪽 눈 중앙에서 gaze 방향 벡터를 화살표로 표시한다.
+    gaze 수치는 headpose 텍스트 위쪽에 표시한다.
+    """
+    for track, gaze in zip(tracks, gazes):
+        bbox = track.bbox
+        color = _id_color(track.track_id)
+
+        # gaze 수치 텍스트 (headpose 텍스트 위에 표시)
+        text = f"G:{gaze.x:+.2f} {gaze.y:+.2f} {gaze.z:+.2f}"
+        cv2.putText(
+            img=frame,
+            text=text,
+            org=(bbox.x2, bbox.y1 - 36),       # headpose 텍스트(-18) 위
+            fontFace=cv2.FONT_HERSHEY_SIMPLEX,
+            fontScale=font_scale,
+            color=color,
+            thickness=thickness,
+            lineType=cv2.LINE_AA,
+        )
+
+        # 양쪽 눈에서 gaze vector 화살표
+        for eye_bbox in (track.left_eye, track.right_eye):
+            if eye_bbox is None:
+                continue
+            cx, cy = eye_bbox.center()
+            arrow_len = min(eye_bbox.w(), eye_bbox.h()) * 2
+            dx = int(arrow_len * gaze.x)
+            dy = int(-arrow_len * gaze.y)
+
+            cv2.arrowedLine(
+                img=frame,
+                pt1=(cx, cy),
+                pt2=(cx + dx, cy + dy),
+                color=color,
+                thickness=2,
+                line_type=cv2.LINE_AA,
+                tipLength=0.3,
+            )
+
+
+# ROI 폴리곤 + in_roi 텍스트 표시
+def draw_roi(
+    frame: np.ndarray,
+    tracks: List[Track],
+    polygon: List[List[int]],
+    font_scale: float = 0.45,
+    thickness: int = 1,
+) -> None:
+    """ROI 폴리곤을 그리고, 각 Track bbox 위에 ROI 상태를 표시한다."""
+    # ROI 폴리곤 그리기
+    if polygon:
+        pts = np.array(polygon, dtype=np.int32)
+        cv2.polylines(
+            frame,
+            [pts], 
+            isClosed=True, 
+            color=(0, 0, 0), 
+            thickness=2, 
+            lineType=cv2.LINE_AA)
+
+    for t in tracks:
+        color = _id_color(t.track_id)
+        cv2.putText(
+            img=frame,
+            text=f"ROI:{t.in_roi} dwell:{t.dwell_frames}",
+            org=(t.bbox.x2, t.bbox.y1 - 54),     # gaze 텍스트(-36) 위
+            fontFace=cv2.FONT_HERSHEY_SIMPLEX,
+            fontScale=font_scale,
+            color=color,
+            thickness=thickness,
+            lineType=cv2.LINE_AA,
+        )
+
+
+# LookResult 텍스트 표시
+def draw_look(
+    frame: np.ndarray,
+    tracks: List[Track],
+    look_results: List[LookResult],
+    font_scale: float = 0.45,
+    thickness: int = 1,
+) -> None:
+    """각 Track bbox 위에 LookResult(보고 있는지, 각도)를 표시한다."""
+    for track, lr in zip(tracks, look_results):
+        color = _id_color(track.track_id)
+        cv2.putText(
+            img=frame,
+            text=f"Look:{lr.is_looking} Degree:{lr.angle_deg:.1f}",
+            org=(track.bbox.x2, track.bbox.y1 - 72),   # ROI 텍스트(-54) 위
+            fontFace=cv2.FONT_HERSHEY_SIMPLEX,
+            fontScale=font_scale,
+            color=color,
+            thickness=thickness,
+            lineType=cv2.LINE_AA,
+        )

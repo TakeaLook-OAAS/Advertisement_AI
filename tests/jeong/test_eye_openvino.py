@@ -1,24 +1,56 @@
-"""
-eye_openvino.py 테스트: jpg 이미지에서
-face detection -> eye detection 파이프라인을 태운 뒤
-눈 영역을 crop한 이미지를 저장합니다.
+# 사진 입력받아서 facial-landmarks-35-adas-0002.xml의 모든 출력 점을 찍음
 
-사용법:
-    python -m tests.jeong.test_eye_openvino
-"""
+from __future__ import annotations
+from typing import Any, Dict, List
 import cv2
-import os
-from src.models.face_openvino import FaceDetector
-from src.models.eye_openvino import EyeDetector
-from src.utils.types import BBoxXYXY, Track
+import numpy as np
 from loguru import logger
+from openvino import Core
+from src.utils.types import BBoxXYXY, Track
+from src.models.face_openvino import FaceDetector
+import os
 
-INPUT_IMAGE = "data/samples/test_3.jpg"
-OUTPUT_DIR = "data/output/test_eye"
+class EyeDetector:
+    def __init__(self, cfg: Dict[str, Any]):
+        device_str = cfg.get("device", "CPU")
+        weights = cfg.get("weights", "weights/eye_detection/facial-landmarks-35-adas-0002.xml")
 
-OUTPUT_IMAGE = "test_3_face.jpg"
-OUTPUT_LEFT = "test_3_left_eye.jpg"
-OUTPUT_RIGHT = "test_3_right_eye.jpg"
+        core = Core()
+        model = core.read_model(model=weights)
+        self.compiled_model = core.compile_model(model=model, device_name=device_str)
+        self.output_layer = self.compiled_model.output(0)
+        logger.info(f"[EyeDetector] weights={weights}  device={device_str}")
+
+    def detect(self, frame: np.ndarray, track: Track) -> list:
+        crop_bbox = track.crop_bbox if track.crop_bbox is not None else track.bbox
+        
+        crop_h = crop_bbox.h()
+        crop_w = crop_bbox.w()
+
+        face_crop = frame[crop_bbox.y1:crop_bbox.y2, crop_bbox.x1:crop_bbox.x2]
+        
+        resized = cv2.resize(face_crop, (60, 60))
+        input_image = resized.transpose((2, 0, 1))  # HWC → CHW
+        input_image = np.expand_dims(input_image, axis=0)
+        # 입력 shape: 1, 3, 60, 60 (B, C, H, W)
+
+        infer_result = self.compiled_model([input_image])   # OVDict: 레이어가 여러 개일 수 있기 때문에 딕셔너리(키-값)로 반환
+        results = infer_result[self.output_layer]
+
+        landmarks = results[0]
+        for i in range(len(landmarks)):
+            if i % 2 == 0:
+                landmarks[i] = landmarks[i] * crop_w
+            else:
+                landmarks[i] = landmarks[i] * crop_h
+
+        return landmarks
+
+
+INPUT_IMAGE = "data/samples/test_4.jpg"
+OUTPUT_DIR = "data/output/"
+
+OUTPUT_IMAGE = "test_4_face.jpg"
 
 def main():
     os.makedirs(OUTPUT_DIR, exist_ok=True)
@@ -49,33 +81,22 @@ def main():
 
     # 3) eye detection
     eye_detector = EyeDetector({"device": "CPU"})
-    track, test_left, test_right = eye_detector.detect(frame, track)
+    landmarks = eye_detector.detect(frame, track)
     
-    # 얼굴 crop 위에 랜드마크 4개 점 찍기
+    # 얼굴 crop 위에 모든 랜드마크 점 찍기 (각각 다른 색)
     face_with_pts = face_crop.copy()
-    lx0, ly0, lx1, ly1 = test_left
-    rx0, ry0, rx1, ry1 = test_right
-    for (px, py) in [(lx0, ly0), (lx1, ly1)]:
-        cv2.circle(face_with_pts, (int(px), int(py)), 3, (0, 0, 255), -1)
-    for (px, py) in [(rx0, ry0), (rx1, ry1)]:
-        cv2.circle(face_with_pts, (int(px), int(py)), 3, (0, 255, 0), -1)
+    num_points = len(landmarks) // 2
+    for i in range(num_points):
+        px = landmarks[i * 2]
+        py = landmarks[i * 2 + 1]
+        # HSV 색상환을 이용해 점마다 고유 색상 생성
+        hue = int(180 * i / num_points)
+        color_hsv = np.uint8([[[hue, 255, 255]]])
+        color_bgr = cv2.cvtColor(color_hsv, cv2.COLOR_HSV2BGR)[0][0]
+        color = (int(color_bgr[0]), int(color_bgr[1]), int(color_bgr[2]))
+        cv2.circle(face_with_pts, (int(px), int(py)), 3, color, -1)
     cv2.imwrite(os.path.join(OUTPUT_DIR, OUTPUT_IMAGE), face_with_pts)
 
-    if track.left_eye is None or track.right_eye is None:
-        print("눈을 찾지 못했습니다.")
-        return
-
-    print(f"왼쪽 눈 bbox: {track.left_eye}")
-    print(f"오른쪽 눈 bbox: {track.right_eye}")
-
-    # 4) 눈 영역 crop 저장
-    le = track.left_eye
-    re = track.right_eye
-    left_crop = frame[le.y1:le.y2, le.x1:le.x2]
-    right_crop = frame[re.y1:re.y2, re.x1:re.x2]
-
-    cv2.imwrite(os.path.join(OUTPUT_DIR, OUTPUT_LEFT), left_crop)
-    cv2.imwrite(os.path.join(OUTPUT_DIR, OUTPUT_RIGHT), right_crop)
     print(f"결과 저장 완료: {OUTPUT_DIR}")
 
 

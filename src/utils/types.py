@@ -151,7 +151,6 @@ class PersonAttr:
 
 
 
-
 # Look judgement / Events / Stats
 @dataclass(frozen=True)
 class LookResult:

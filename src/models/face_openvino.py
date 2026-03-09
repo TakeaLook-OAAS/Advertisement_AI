@@ -10,7 +10,7 @@ from src.utils.types import BBoxXYXY, Track
 class FaceDetector:
     def __init__(self, cfg: Dict[str, Any]):
         device_str = cfg.get("device", "CPU")
-        weights = cfg.get("model", "weights/face_detection/face-detection-adas-0001.xml")
+        weights = cfg.get("weights", "weights/face_detection/face-detection-adas-0001.xml")
         self.conf_thresh = float(cfg.get("conf_thresh", 0.5))
         self.min_face_size = int(cfg.get("min_face_size", 30))  # 최소 얼굴 크기: 30px -> AP(head height > 32px): 84.8%
 
@@ -18,7 +18,7 @@ class FaceDetector:
         model = core.read_model(model=weights)
         self.compiled_model = core.compile_model(model=model, device_name=device_str)
         self.output_layer = self.compiled_model.output(0)
-        logger.info(f"[FaceDetector] model={weights}  device={device_str}  conf={self.conf_thresh}")
+        logger.info(f"[FaceDetector] weights={weights}  device={device_str}  conf={self.conf_thresh}")
 
     def detect(self, frame: np.ndarray, track: Track) -> Track:
         """
@@ -88,3 +88,8 @@ class FaceDetector:
             crop_bbox가 갱신된 트랙 리스트
         """
         return [self.detect(frame, t) for t in tracks]
+
+
+
+# https://github.com/openvinotoolkit/open_model_zoo/tree/master/models/intel/face-detection-adas-0001
+# https://storage.openvinotoolkit.org/repositories/open_model_zoo/2022.3/models_bin/1/face-detection-adas-0001/FP32/

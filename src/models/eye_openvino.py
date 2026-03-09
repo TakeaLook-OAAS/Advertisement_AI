@@ -10,13 +10,13 @@ from src.utils.types import BBoxXYXY, Track
 class EyeDetector:
     def __init__(self, cfg: Dict[str, Any]):
         device_str = cfg.get("device", "CPU")
-        weights = cfg.get("model", "weights/eye_detection/facial-landmarks-35-adas-0002.xml")
+        weights = cfg.get("weights", "weights/eye_detection/facial-landmarks-35-adas-0002.xml")
 
         core = Core()
         model = core.read_model(model=weights)
         self.compiled_model = core.compile_model(model=model, device_name=device_str)
         self.output_layer = self.compiled_model.output(0)
-        logger.info(f"[EyeDetector] model={weights}  device={device_str}")
+        logger.info(f"[EyeDetector] weights={weights}  device={device_str}")
 
     def detect(self, frame: np.ndarray, track: Track) -> Track:
         """
@@ -51,17 +51,14 @@ class EyeDetector:
         rx3 = landmarks[6] * crop_w
         ry3 = landmarks[7] * crop_h
 
-        test_left = (lx0, ly0, lx1, ly1)
-        test_right = (rx2, ry2, ry3, ry3)
-
-        logger.info(f"p0={lx0, ly0} p1={lx1, ly1} p2={rx2, ry2} p3={rx3, ry3}")
+        #logger.info(f"p0={lx0, ly0} p1={lx1, ly1} p2={rx2, ry2} p3={rx3, ry3}")
         # 두 코너 점으로부터 눈 영역 bbox 생성
         left_box = self._eye_bbox(lx0, ly0, lx1, ly1, crop_bbox)
         right_box = self._eye_bbox(rx2, ry2, rx3, ry3, crop_bbox)
 
         track.left_eye = left_box
         track.right_eye = right_box
-        return track, test_left, test_right
+        return track
 
     @staticmethod
     def _eye_bbox(x0: float, y0: float, x1: float, y1: float,
@@ -91,18 +88,5 @@ class EyeDetector:
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+# https://github.com/openvinotoolkit/open_model_zoo/tree/master/models/intel/facial-landmarks-35-adas-0002
 # https://storage.openvinotoolkit.org/repositories/open_model_zoo/2022.3/models_bin/1/facial-landmarks-35-adas-0002/FP32/
