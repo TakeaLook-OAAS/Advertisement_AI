@@ -15,9 +15,9 @@ from src.models.gaze_openvino import GazeDetector
 from src.vision.draw import draw_tracks, draw_crop_bbox, draw_headpose, draw_gaze
 
 
-INPUT_IMAGE = "data/samples/test_1.jpg"
+INPUT_IMAGE = "data/samples/test_8.jpg"
 OUTPUT_DIR = "data/output/"
-OUTPUT_IMAGE = "test_1_gaze_pipeline.jpg"
+OUTPUT_IMAGE = "test_8_gaze_pipeline.jpg"
 
 LEFT_IMAGE = "data/samples/test_eye/test_4_left.jpg"
 RIGHT_IMAGE = "data/samples/test_eye/test_4_right.jpg"
@@ -50,14 +50,12 @@ def pipeline():     # 파이프라인대로 EyeDetector에서 Eye crop해서 입
     face_detector = FaceDetector({"device": "CPU"})
     tracks = face_detector.detect_batch(frame, tracks)
 
-    # 4) headpose
+    # 4) headpose → track.headpose
     hp_estimator = HeadPoseEstimator({"device": "cpu"})
-    headposes = hp_estimator.infer_batch(frame, tracks)
-    for tid, hp, reason in headposes:
-        if hp is not None:
-            print(f"track {tid} headpose: yaw={hp.yaw:+.1f}, pitch={hp.pitch:+.1f}, roll={hp.roll:+.1f}")
-        else:
-            print(f"track {tid} headpose 실패: {reason}")
+    tracks = hp_estimator.infer_batch(frame, tracks)
+    for t in tracks:
+        hp = t.headpose
+        print(f"track {t.track_id} headpose: yaw={hp.yaw:+.1f}, pitch={hp.pitch:+.1f}, roll={hp.roll:+.1f}")
 
     # 5) eye detection
     eye_detector = EyeDetector({"device": "CPU"})
@@ -65,18 +63,19 @@ def pipeline():     # 파이프라인대로 EyeDetector에서 Eye crop해서 입
     for t in tracks:
         print(f"track {t.track_id} left_eye: {t.left_eye}, right_eye: {t.right_eye}")
 
-    # 6) gaze estimation
+    # 6) gaze estimation → track.gaze
     gaze_detector = GazeDetector({"device": "CPU"})
-    gazes = gaze_detector.detect_batch(frame, tracks, headposes)
-    for t, g in zip(tracks, gazes):
+    tracks = gaze_detector.detect_batch(frame, tracks)
+    for t in tracks:
+        g = t.gaze
         print(f"track {t.track_id} gaze: x={g.x:+.4f}, y={g.y:+.4f}, z={g.z:+.4f}")
 
     # 7) 시각화
     result = frame.copy()
     draw_tracks(result, tracks)
     draw_crop_bbox(result, tracks)
-    draw_headpose(result, headposes, tracks)
-    draw_gaze(result, gazes, tracks)
+    draw_headpose(result, tracks)
+    draw_gaze(result, tracks)
 
     # 8) 저장
     out_path = os.path.join(OUTPUT_DIR, OUTPUT_IMAGE)
@@ -113,14 +112,12 @@ def image():    # LEFT_IMAGE, RIGHT_IMAGE를 직접 넣어서 계산
     face_detector = FaceDetector({"device": "CPU"})
     tracks = face_detector.detect_batch(frame, tracks)
 
-    # 4) headpose
+    # 4) headpose → track.headpose
     hp_estimator = HeadPoseEstimator({"device": "cpu"})
-    headposes = hp_estimator.infer_batch(frame, tracks)
-    for tid, hp, reason in headposes:
-        if hp is not None:
-            print(f"track {tid} headpose: yaw={hp.yaw:+.1f}, pitch={hp.pitch:+.1f}, roll={hp.roll:+.1f}")
-        else:
-            print(f"track {tid} headpose 실패: {reason}")
+    tracks = hp_estimator.infer_batch(frame, tracks)
+    for t in tracks:
+        hp = t.headpose
+        print(f"track {t.track_id} headpose: yaw={hp.yaw:+.1f}, pitch={hp.pitch:+.1f}, roll={hp.roll:+.1f}")
 
     # 5) 눈 이미지를 직접 로드하여 gaze estimation (EyeDetector 생략)
     gaze_detector = GazeDetector({"device": "CPU"})
@@ -131,16 +128,13 @@ def image():    # LEFT_IMAGE, RIGHT_IMAGE를 직접 넣어서 계산
     right_resized = cv2.resize(right_image, (60, 60)).transpose((2, 0, 1))
     right_input = np.expand_dims(right_resized, axis=0)
 
-    gazes = []
-    for tid, hp, reason in headposes:
-        if hp is None:
-            gazes.append(Gaze(x=0.0, y=0.0, z=0.0))
-            continue
+    for t in tracks:
+        hp = t.headpose
         head_pose_angles = np.array([[hp.yaw, hp.pitch, hp.roll]], dtype=np.float32)
         infer_result = gaze_detector.compiled_model([left_input, right_input, head_pose_angles])
         results = infer_result[gaze_detector.output_layer]
-        gazes.append(Gaze(x=float(results[0][0]), y=float(results[0][1]), z=float(results[0][2])))
-        print(f"track {tid} gaze: x={results[0][0]:+.4f}, y={results[0][1]:+.4f}, z={results[0][2]:+.4f}")
+        t.gaze = Gaze(x=float(results[0][0]), y=float(results[0][1]), z=float(results[0][2]))
+        print(f"track {t.track_id} gaze: x={results[0][0]:+.4f}, y={results[0][1]:+.4f}, z={results[0][2]:+.4f}")
 
     # 5) eye detection <- gaze 벡터 시작 위치 잡기 위해서
     eye_detector = EyeDetector({"device": "CPU"})
@@ -152,8 +146,8 @@ def image():    # LEFT_IMAGE, RIGHT_IMAGE를 직접 넣어서 계산
     result = frame.copy()
     draw_tracks(result, tracks)
     draw_crop_bbox(result, tracks)
-    draw_headpose(result, headposes, tracks)
-    draw_gaze(result, gazes, tracks)
+    draw_headpose(result, tracks)
+    draw_gaze(result, tracks)
 
     # 7) 저장
     out_path = os.path.join(OUTPUT_DIR, OUTPUT_IMAGE)
