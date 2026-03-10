@@ -11,6 +11,7 @@ class EyeDetector:
     def __init__(self, cfg: Dict[str, Any]):
         device_str = cfg.get("device", "CPU")
         weights = cfg.get("weights", "weights/eye_detection/facial-landmarks-35-adas-0002.xml")
+        self.min_eye_size = int(cfg.get("min_eye_size", 10))
 
         core = Core()
         model = core.read_model(model=weights)
@@ -18,14 +19,21 @@ class EyeDetector:
         self.output_layer = self.compiled_model.output(0)
         logger.info(f"[EyeDetector] weights={weights}  device={device_str}")
 
+
     def detect(self, frame: np.ndarray, track: Track) -> Track:
         """
         track.crop_bbox를 입력받아서 eye의 좌표를 구하고 track에 넣음
+        실패 시 left_eye, right_eye를 원래 bbox로 설정
         """
         crop_bbox = track.crop_bbox if track.crop_bbox is not None else track.bbox
-        
+
         crop_h = crop_bbox.h()
         crop_w = crop_bbox.w()
+
+        if crop_h < self.min_eye_size or crop_w < self.min_eye_size:
+            track.left_eye = track.bbox
+            track.right_eye = track.bbox
+            return track
 
         face_crop = frame[crop_bbox.y1:crop_bbox.y2, crop_bbox.x1:crop_bbox.x2]
         

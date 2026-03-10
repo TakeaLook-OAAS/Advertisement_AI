@@ -8,13 +8,13 @@ from typing import Any, Dict, Union
 import cv2
 from loguru import logger
 from src.io.video_source import VideoSource
-from src.logic.status import StatusTracker
+#from src.logic.status import StatusTracker
 from src.vision.draw import draw_tracks, draw_crop_bbox, draw_fps, draw_headpose, draw_gaze, draw_roi, draw_look
 
 
 def run_loop(cfg: Dict[str, Any], source: Union[int, str], orch) -> None:
     vs = VideoSource(source)
-    status = StatusTracker()
+    #status = StatusTracker()
 
     # ── display ──────────────────────────────────────────────────
     disp_cfg = cfg.get("display", {})
@@ -62,9 +62,7 @@ def run_loop(cfg: Dict[str, Any], source: Union[int, str], orch) -> None:
                     f"frame={meta.frame_idx}\n"
                     f"ts_ms={meta.ts_ms}\n"
                     f"dets={out.dets}\n"
-                    f"tracks={out.tracks}\n"
-                    f"headposes={out.headposes}\n"
-                    f"gazes={out.gazes}"
+                    f"tracks={out.tracks}"
                 )
             ########################## 나중에 지우셔   
 
@@ -83,13 +81,13 @@ def run_loop(cfg: Dict[str, Any], source: Union[int, str], orch) -> None:
             if show_fps:            # FPS
                 draw_fps(frame, fps, font_scale, thickness)
             if show_headpose:       # headpose + headpose vector
-                draw_headpose(frame, out.headposes, out.tracks, font_scale, thickness)
+                draw_headpose(frame, out.tracks, font_scale, thickness)
             if show_gaze:           # gaze + gaze vector
-                draw_gaze(frame, out.gazes, out.tracks, font_scale, thickness)
+                draw_gaze(frame, out.tracks, font_scale, thickness)
             if show_roi:            # ROI 폴리곤 + in_roi
                 draw_roi(frame, out.tracks, roi_pts, font_scale, thickness)
             if show_look:           # LookResult
-                draw_look(frame, out.tracks, out.look_results, font_scale, thickness)
+                draw_look(frame, out.tracks, font_scale, thickness)
 
             # 비디오 파일로 기록
             if writer is not None:

@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import Dict, List, Sequence
 import cv2
 import numpy as np
-from src.utils.types import Track
+from src.utils.types import ROI, Track
 
 
 class StayTracker:
@@ -22,8 +22,8 @@ class StayTracker:
     def _contains(self, x: float, y: float) -> bool:
         return cv2.pointPolygonTest(self._polygon, (float(x), float(y)), measureDist=False) >= 0
 
-    def update(self, tracks: List[Track]) -> None:
-        """tracks의 in_roi, dwell_frames를 직접 갱신."""
+    def update(self, tracks: List[Track]) -> List[Track]:
+        """track.roi를 채워서 반환합니다."""
         active_ids = set()
 
         for t in tracks:
@@ -32,14 +32,14 @@ class StayTracker:
 
             if self._contains(cx, cy):
                 self._dwell[t.track_id] = self._dwell.get(t.track_id, 0) + 1
-                t.in_roi = True
-                t.dwell_frames = self._dwell[t.track_id]
+                t.roi = ROI(in_roi=True, dwell_frames=self._dwell[t.track_id])
             else:
                 self._dwell.pop(t.track_id, None)
-                t.in_roi = False
-                t.dwell_frames = 0
+                t.roi = ROI(in_roi=False, dwell_frames=0)
 
         # 사라진 track 정리
         for tid in list(self._dwell):
             if tid not in active_ids:
                 del self._dwell[tid]
+
+        return tracks

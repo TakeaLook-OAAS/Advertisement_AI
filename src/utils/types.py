@@ -18,6 +18,39 @@ class FrameMeta:
     width: int      # 영상 해상도
     height: int     # 영상 해상도
 
+@dataclass
+class Track:
+    """
+    bytetrack_tracker.py의 표준 출력 형식
+
+    - track_id: 지속적으로 유지되는 ID
+    - bbox: 원본 프레임 기준 픽셀 좌표(xyxy)
+    - crop_bbox: 얼굴 영역 기준 픽셀 좌표(xyxy)
+    - left_eye, right_eye: 눈 영역 기준 픽셀 좌표(xyxy)
+    - age: 처음 등장한 이후 경과한 프레임 수
+    - hits: 매칭/확정된 프레임 수
+
+    아래 값들은 보통 ROI/체류 로직에서 채움(트래커 자체가 아니라):
+    - in_roi: ROI 내부 여부
+    - dwell_frames: ROI 내부에서 체류한 프레임 수
+    """
+    track_id: int
+    bbox: BBoxXYXY
+    crop_bbox: Optional[BBoxXYXY] = None
+
+    left_eye: Optional[BBoxXYXY] = None
+    right_eye: Optional[BBoxXYXY] = None
+
+    headpose: Optional[HeadPose] = None
+    gaze: Optional[Gaze] = None
+    attr: Optional[PersonAttr] = None
+    roi: Optional[ROI] = None
+    look_result: Optional[LookResult] = None
+
+    age: int = 0
+    hits: int = 0
+    conf: float = 0.0    # 트래커가 반환하는 현재 신뢰도
+
 
 # Yolo
 @dataclass(frozen=True)
@@ -79,39 +112,6 @@ class HeadPose:
     roll: float
 
 
-# ByteTrack
-@dataclass
-class Track:
-    """
-    bytetrack_tracker.py의 표준 출력 형식
-
-    - track_id: 지속적으로 유지되는 ID
-    - bbox: 원본 프레임 기준 픽셀 좌표(xyxy)
-    - crop_bbox: 얼굴 영역 기준 픽셀 좌표(xyxy)
-    - left_eye, right_eye: 눈 영역 기준 픽셀 좌표(xyxy)
-    - age: 처음 등장한 이후 경과한 프레임 수
-    - hits: 매칭/확정된 프레임 수
-
-    아래 값들은 보통 ROI/체류 로직에서 채움(트래커 자체가 아니라):
-    - in_roi: ROI 내부 여부
-    - dwell_frames: ROI 내부에서 체류한 프레임 수
-    """
-    track_id: int
-    bbox: BBoxXYXY
-    crop_bbox: Optional[BBoxXYXY] = None
-
-    left_eye: Optional[BBoxXYXY] = None
-    right_eye: Optional[BBoxXYXY] = None
-
-    age: int = 0
-    hits: int = 0
-    conf: float = 0.0    # 트래커가 반환하는 현재 신뢰도
-
-    # These are often filled by ROI/dwell logic (not tracker itself)
-    in_roi: bool = False
-    dwell_frames: int = 0
-
-
 # OpenVINO
 @dataclass(frozen=True)
 class Gaze:
@@ -150,6 +150,17 @@ class PersonAttr:
     age_group: AgeGroup
 
 
+# ROI 체류 판정
+@dataclass(frozen=True)
+class ROI:
+    """
+    ROI(관심 영역) 체류 판정 결과
+
+    - in_roi: ROI 내부 여부
+    - dwell_frames: ROI 내부에서 연속 체류한 프레임 수
+    """
+    in_roi: bool
+    dwell_frames: int
 
 # Look judgement / Events / Stats
 @dataclass(frozen=True)

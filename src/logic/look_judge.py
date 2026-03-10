@@ -4,7 +4,7 @@
 from __future__ import annotations
 import math
 from typing import Any, Dict, List
-from src.utils.types import Gaze, LookResult
+from src.utils.types import Gaze, LookResult, Track
 
 
 # 카메라 정면 방향 (OpenVINO 좌표계: z가 카메라에서 멀어지는 방향)
@@ -40,6 +40,14 @@ class LookJudge:
             angle_deg=angle_deg,
         )
 
-    def judge_batch(self, gazes: List[Gaze]) -> List[LookResult]:
-        """List[Gaze] → List[LookResult]. gazes[i]는 tracks[i]와 같은 순서."""
-        return [self.judge(g) for g in gazes]
+    def judge_track(self, track: Track) -> Track:
+        """track.gaze로 판정하여 track.look_result에 채웁니다."""
+        if track.gaze is None:
+            track.look_result = LookResult(is_looking=False, score=0.0, angle_deg=180.0)
+        else:
+            track.look_result = self.judge(track.gaze)
+        return track
+
+    def judge_batch(self, tracks: List[Track]) -> List[Track]:
+        """각 track.gaze로 판정하여 track.look_result에 채웁니다."""
+        return [self.judge_track(t) for t in tracks]

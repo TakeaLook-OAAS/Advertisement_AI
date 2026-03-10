@@ -14,7 +14,7 @@ from src.models.yolo_detector import YoloDetector
 from src.models.bytetrack_tracker import ByteTrackTracker
 from src.models.face_openvino import FaceDetector
 from src.models.headpose_6drepnet import HeadPoseEstimator
-from src.vision.draw import draw_tracks, draw_crop_bbox, draw_headpose_vector
+from src.vision.draw import draw_tracks, draw_crop_bbox, draw_headpose
 
 
 def parse_args():
@@ -68,20 +68,18 @@ def main():
         else:
             logger.info(f"  track_id={t.track_id} crop_bbox=None")
 
-    # 4) HeadPose 추정 (6DRepNet)
+    # 4) HeadPose 추정 (6DRepNet) → track.headpose
     hp_estimator = HeadPoseEstimator({"device": args.device})
-    hp_results = hp_estimator.infer_batch(frame, tracks)
+    tracks = hp_estimator.infer_batch(frame, tracks)
     logger.info(f"[HeadPose] 추정 완료")
-    for track_id, hp, reason in hp_results:
-        if hp is not None:
-            logger.info(f"  track_id={track_id} yaw={hp.yaw:+.1f} pitch={hp.pitch:+.1f} roll={hp.roll:+.1f}")
-        else:
-            logger.info(f"  track_id={track_id} FAIL: {reason}")
+    for t in tracks:
+        hp = t.headpose
+        logger.info(f"  track_id={t.track_id} yaw={hp.yaw:+.1f} pitch={hp.pitch:+.1f} roll={hp.roll:+.1f}")
 
     # 5) 시각화 (draw.py 활용)
     draw_tracks(frame, tracks)
     draw_crop_bbox(frame, tracks)
-    draw_headpose_vector(frame, hp_results, tracks)
+    draw_headpose(frame, tracks)
 
     # 결과 저장
     os.makedirs(os.path.dirname(args.output), exist_ok=True)
