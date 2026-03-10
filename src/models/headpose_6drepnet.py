@@ -33,14 +33,14 @@ class HeadPoseEstimator:
             (HeadPose, None) on success
             (None, fail_reason) on failure
         """
-        bbox = track.crop_bbox if track.crop_bbox is not None else track.bbox
-        crop_h = bbox.y2 - bbox.y1
-        crop_w = bbox.x2 - bbox.x1
+        crop_bbox = track.crop_bbox if track.crop_bbox is not None else track.bbox
+        crop_h = crop_bbox.h()
+        crop_w = crop_bbox.w()
 
         if crop_h < self.min_face_size or crop_w < self.min_face_size:
             return None, "bbox_too_small"
 
-        crop = frame[bbox.y1:bbox.y2, bbox.x1:bbox.x2]
+        crop = frame[crop_bbox.y1:crop_bbox.y2, crop_bbox.x1:crop_bbox.x2]
 
         try:
             results = self.model.predict(crop)      # 6DRepNet에 crop 이미지 넣기
@@ -60,7 +60,9 @@ class HeadPoseEstimator:
         else:
             return None, "parse_error"
 
-        return HeadPose(yaw=yaw, pitch=pitch, roll=roll), None
+        # logger.debug(f"[HeadPose] yaw={yaw:+.1f}, pitch={pitch:+.1f}, roll={roll:+.1f}")
+        # yaw가 음수면 오른쪽, 양수면 왼쪽 / pitch가 음수면 아래, 양수면 위
+        return HeadPose(yaw=-yaw, pitch=pitch, roll=roll), None
 
     def infer_batch(self, frame, tracks: List[Track]) -> List[Tuple[int, Optional[HeadPose], Optional[str]]]:
         """

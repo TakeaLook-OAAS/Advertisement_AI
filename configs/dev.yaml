@@ -3,13 +3,16 @@ source: "data/samples/test2.mp4"
 
 display:
   output_video: true
-  output_video_path: "data/output/output_10fps.mp4"
-  font_scale: 2.0
-  thickness: 5
+  output_video_path: "data/output/output_test2.mp4"
+  font_scale: 0.7
+  thickness: 2
   draw_bbox: true
+  draw_crop_bbox: true
   draw_fps: true
   draw_headpose: true
-  draw_headpose_vector: true
+  draw_gaze: true
+  draw_roi: true
+  draw_look: true
 
 models:
   yolo:
@@ -21,11 +24,24 @@ models:
     iou_threshold: 0.3
     max_lost: 30              # 이 프레임 수만큼 미매칭이면 track 삭제
   face:
-    device: "cpu"
-    model: "weights/face_detection/face-detection-adas-0001.xml"
+    device: "CPU"
+    weights: "weights/face_detection/face-detection-adas-0001.xml"
     conf_thresh: 0.5          # confidence threshold
     min_face_size: 30         # 최소 얼굴 크기 (pixel). 이보다 작으면 bbox 그대로 반환
   headpose:
     device: "cpu"             # cpu / cuda
     weights: "weights/headpose/6DRepNet_300W_LP_AFLW2000.pth"  # 가중치 경로
     min_face_size: 30         # 최소 얼굴 크기 (pixel). 이보다 작으면 실패 처리
+  eye:
+    device: "CPU"
+    weights: "weights/eye_detection/facial-landmarks-35-adas-0002.xml"
+  gaze:
+    device: "CPU"
+    weights: "weights/gaze/gaze-estimation-adas-0002.xml"
+
+logic:
+  roi:
+    polygon: [[1000,1000],[3000,1000],[3000,2000],[1000,2000]]
+    #polygon: [[200,1200],[800,1200],[800,1500],[200,1500]]
+  attention:
+    threshold_deg: 30.0

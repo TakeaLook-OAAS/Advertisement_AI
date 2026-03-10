@@ -4,13 +4,14 @@ __pycache__/
 .env
 
 # Outputs
-data/output/
-data/samples/
+data/output/*
+data/samples/*
 !data/**/.gitkeep
 *.log
 
 # Large model files
 weights/age_gender/*
+weights/eye_detection/*
 weights/face_detection/*
 weights/gaze/*
 weights/headpose/*

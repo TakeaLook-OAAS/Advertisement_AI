@@ -88,6 +88,7 @@ class Track:
     - track_id: 지속적으로 유지되는 ID
     - bbox: 원본 프레임 기준 픽셀 좌표(xyxy)
     - crop_bbox: 얼굴 영역 기준 픽셀 좌표(xyxy)
+    - left_eye, right_eye: 눈 영역 기준 픽셀 좌표(xyxy)
     - age: 처음 등장한 이후 경과한 프레임 수
     - hits: 매칭/확정된 프레임 수
 
@@ -98,6 +99,9 @@ class Track:
     track_id: int
     bbox: BBoxXYXY
     crop_bbox: Optional[BBoxXYXY] = None
+
+    left_eye: Optional[BBoxXYXY] = None
+    right_eye: Optional[BBoxXYXY] = None
 
     age: int = 0
     hits: int = 0
@@ -144,7 +148,6 @@ class PersonAttr:
     """
     gender: Gender
     age_group: AgeGroup
-
 
 
 
