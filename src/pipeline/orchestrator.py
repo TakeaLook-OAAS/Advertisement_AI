@@ -16,18 +16,20 @@ from typing import Any, Dict, List, Optional, Tuple
 from src.models.bytetrack_tracker import ByteTrackTracker
 from src.models.face_openvino import FaceDetector
 from src.models.yolo_detector import YoloDetector
+from src.models.mivolo_attr import MiVOLOAttr
 from src.models.headpose_6drepnet import HeadPoseEstimator
 from src.models.eye_openvino import EyeDetector
 from src.models.gaze_openvino import GazeDetector
 from src.logic.stay import StayTracker
 from src.logic.look_judge import LookJudge
-from src.utils.types import Det, FrameMeta, HeadPose, Track, Gaze, LookResult
+from src.utils.types import Det, FrameMeta, HeadPose, Track, Gaze, LookResult, AttrMap
 
 
 @dataclass
 class OrchestratorOutput:
     dets: List[Det]
     tracks: List[Track]
+    attrs: AttrMap
     headposes: List[Tuple[int, Optional[HeadPose], Optional[str]]]
     gazes: List[Gaze]
     look_results: List[LookResult]
@@ -44,6 +46,7 @@ class Orchestrator:
         self.detector = YoloDetector(cfg.get("models", {}).get("yolo", {}))
         self.tracker = ByteTrackTracker(cfg.get("models", {}).get("tracker", {}))
         self.face = FaceDetector(cfg.get("models", {}).get("face", {}))
+        self.mivolo = MiVOLOAttr(cfg.get("models", {}).get("mivolo", {}))
         self.headpose = HeadPoseEstimator(cfg.get("models", {}).get("headpose", {}))
         self.eye = EyeDetector(cfg.get("models", {}).get("eye", {}))
         self.gaze = GazeDetector(cfg.get("models", {}).get("gaze", {}))
@@ -63,25 +66,29 @@ class Orchestrator:
         # 3) crop face
         tracks = self.face.detect_batch(frame, tracks)
 
-        # 4) headpose
+        # 4) attributes (age/gender)
+        attrs = self.mivolo.infer(frame, tracks)
+
+        # 5) headpose
         headposes = self.headpose.infer_batch(frame, tracks)
 
-        # 5) crop eye
+        # 6) crop eye
         tracks = self.eye.detect_batch(frame, tracks)
 
-        # 6) gaze
+        # 7) gaze
         gazes = self.gaze.detect_batch(frame, tracks, headposes)
 
-        # 7) ROI 판정
+        # 8) ROI 판정
         if self.stay_tracker is not None:
             self.stay_tracker.update(tracks)
 
-        # 8) 시선 판정
+        # 9) 시선 판정
         look_results = self.look_judge.judge_batch(gazes)
 
         return OrchestratorOutput(
             dets=dets, 
-            tracks=tracks, 
+            tracks=tracks,
+            attrs=attrs,
             headposes=headposes, 
             gazes=gazes, 
             look_results=look_results)
