@@ -81,19 +81,16 @@ class MiVOLOAttr:
             verbose=False,
         )
         return model
-
-    def infer(self, frame: np.ndarray, tracks: List[Track]) -> AttrMap:
+    
+    def infer(self, frame: np.ndarray, tracks: List[Track]) -> List[Track]:
         """
-        tracks의 crop_bbox(얼굴 bbox) + bbox(사람 bbox)를 사용해 age/gender 추론
+        각 track의 attr 필드를 채워서 반환
         """
-        results: AttrMap = {}
-
         for track in tracks:
             attr = self._infer_one(frame, track)
-            if attr is not None:
-                results[track.track_id] = attr
+            track.attr = attr
 
-        return results
+        return tracks
 
     def _infer_one(self, frame: np.ndarray, track: Track) -> Optional[PersonAttr]:
         logger.info(

@@ -51,7 +51,7 @@ def main():
     # paths
     # -------------------------
     config_path = "configs/dev.yaml"
-    image_path = "data/samples/test_images/test1.jpg"
+    image_path = "data/samples/test1.jpg"
     output_path = "data/output/test_mivolo_image_result.jpg"
 
     # -------------------------
@@ -85,22 +85,24 @@ def main():
     print(f"[TEST] tracks={len(tracks)}")
 
     tracks = face.detect_batch(frame, tracks)
-    attrs = mivolo.infer(frame, tracks)
+    tracks = mivolo.infer(frame, tracks)
 
     print("[TEST] attrs:")
-    for track_id, attr in attrs.items():
-        print(
-            f"  track_id={track_id}, "
-            f"gender={attr.gender.value}, age_group={attr.age_group.value}"
-        )
+    for track in tracks:
+        if track.attr is not None:
+            print(
+                f"  track_id={track.track_id}, "
+                f"gender={track.attr.gender.value}, "
+                f"age_group={track.attr.age_group.value}"
+            )
 
     # -------------------------
     # draw
     # -------------------------
+
     vis = frame.copy()
     for track in tracks:
-        attr = attrs.get(track.track_id)
-        draw_track_info(vis, track, attr)
+        draw_track_info(vis, track, track.attr)
 
     # -------------------------
     # save

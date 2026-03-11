@@ -62,19 +62,22 @@ class Orchestrator:
         # 3) crop face → track.crop_bbox
         tracks = self.face.detect_batch(frame, tracks)
 
-        # 4) headpose → track.headpose
+        # 4) mivolo -> track.attr
+        tracks = self.mivolo.infer(frame, tracks)
+
+        # 5) headpose → track.headpose
         tracks = self.headpose.infer_batch(frame, tracks)
 
-        # 5) crop eye → track.left_eye, track.right_eye
+        # 6) crop eye → track.left_eye, track.right_eye
         tracks = self.eye.detect_batch(frame, tracks)
 
-        # 6) gaze → track.gaze
+        # 7) gaze → track.gaze
         tracks = self.gaze.detect_batch(frame, tracks)
 
-        # 7) ROI 판정 → track.roi
+        # 8) ROI 판정 → track.roi
         tracks = self.stay_tracker.update(tracks)
 
-        # 8) 시선 판정 → track.look_result
+        # 9) 시선 판정 → track.look_result
         tracks = self.look_judge.judge_batch(tracks)
 
         return OrchestratorOutput(dets=dets, tracks=tracks)
