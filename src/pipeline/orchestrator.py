@@ -16,6 +16,7 @@ from typing import Any, Dict, List
 from src.models.bytetrack_tracker import ByteTrackTracker
 from src.models.face_openvino import FaceDetector
 from src.models.yolo_detector import YoloDetector
+from src.models.mivolo_attr import MiVOLOAttr
 from src.models.headpose_6drepnet import HeadPoseEstimator
 from src.models.eye_openvino import EyeDetector
 from src.models.gaze_openvino import GazeDetector
@@ -41,6 +42,7 @@ class Orchestrator:
         self.detector = YoloDetector(cfg.get("models", {}).get("yolo", {}))
         self.tracker = ByteTrackTracker(cfg.get("models", {}).get("tracker", {}))
         self.face = FaceDetector(cfg.get("models", {}).get("face", {}))
+        self.mivolo = MiVOLOAttr(cfg.get("models", {}).get("mivolo", {}))
         self.headpose = HeadPoseEstimator(cfg.get("models", {}).get("headpose", {}))
         self.eye = EyeDetector(cfg.get("models", {}).get("eye", {}))
         self.gaze = GazeDetector(cfg.get("models", {}).get("gaze", {}))

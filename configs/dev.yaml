@@ -39,6 +39,14 @@ models:
   gaze:
     device: "CPU"
     weights: "weights/gaze/gaze-estimation-adas-0002.xml"
+  mivolo:
+    device: "cpu"
+    model: "weights/age_gender/model_imdb_cross_person_4.22_99.46.pth.tar"
+    repo_root: "/app/MiVOLO"
+    min_face_size: 20
+    min_person_size: 40
+    use_persons: true
+    
 
 logic:
   roi:
