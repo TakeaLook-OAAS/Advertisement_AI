@@ -35,6 +35,7 @@ models:
   eye:
     device: "CPU"
     weights: "weights/eye_detection/facial-landmarks-35-adas-0002.xml"
+    min_eye_size: 10
   gaze:
     device: "CPU"
     weights: "weights/gaze/gaze-estimation-adas-0002.xml"

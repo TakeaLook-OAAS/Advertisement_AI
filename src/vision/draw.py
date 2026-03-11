@@ -1,9 +1,9 @@
 from __future__ import annotations
-from typing import Dict, List, Optional, Tuple
+from typing import List, Tuple
 import cv2
 import numpy as np
 import math
-from src.utils.types import HeadPose, Track, Gaze, LookResult
+from src.utils.types import Track
 
 
 # 색상 팔레트 (track_id별 고유 색상, 20색 순환)
@@ -99,36 +99,20 @@ def draw_fps(
 # Headpose 각도 + vector 표시
 def draw_headpose(
     frame: np.ndarray,
-    headposes: List[Tuple[int, Optional[HeadPose], Optional[str]]],
     tracks: List[Track],
     font_scale: float = 0.45,
     thickness: int = 1,
 ) -> None:
-    """
-    각 Track의 bbox 아래쪽에 headpose 각도(yaw/pitch/roll) 텍스트와 vector를 표시한다.
-    headpose가 None이면 실패 사유(reason)를 표시한다.
-    """
-    # track_id -> bbox, crop_bbox 빠른 조회용
-    bbox_map = {}
-    crop_map = {}
-    for t in tracks:
-        tid = t.track_id
-        bbox_map[tid] = t.bbox
-        crop_map[tid] = t.crop_bbox if t.crop_bbox is not None else t.bbox
-
-    for track_id, hp, reason in headposes:
-        bbox = bbox_map.get(track_id)
-        crop = crop_map.get(track_id)
-        if bbox is None:
+    """각 Track의 bbox 위에 headpose 각도(yaw/pitch/roll) 텍스트와 vector를 표시한다."""
+    for track in tracks:
+        hp = track.headpose
+        if hp is None:
             continue
+        bbox = track.bbox
+        crop = track.crop_bbox if track.crop_bbox is not None else track.bbox
+        color = _id_color(track.track_id)
 
-        if hp is not None:
-            text = f"Y:{hp.yaw:+.0f} P:{hp.pitch:+.0f} R:{hp.roll:+.0f}"
-            color = _id_color(track_id)
-        else:
-            text = f"({reason})"
-            color = (128, 128, 128)
-
+        text = f"Y:{hp.yaw:+.0f} P:{hp.pitch:+.0f} R:{hp.roll:+.0f}"
         cv2.putText(
             img=frame,
             text=text,
@@ -141,20 +125,17 @@ def draw_headpose(
         )
 
         # headpose vector 표시
-        if hp is not None:
-            cx, cy = crop.center()  # crop_bbox 중앙 좌표
-            arrow_len = min(crop.w(), crop.h())  # 화살표 길이
-            dx = int(arrow_len * math.sin(math.radians(hp.yaw)))    # yaw → 좌우(X) 이동량
-            dy = int(-arrow_len * math.sin(math.radians(hp.pitch)))   # pitch → 상하(Y) 이동량
-        else:
-            continue
+        cx, cy = crop.center()
+        arrow_len = min(crop.w(), crop.h())
+        dx = int(arrow_len * math.sin(math.radians(hp.yaw)))
+        dy = int(-arrow_len * math.sin(math.radians(hp.pitch)))
 
         cv2.arrowedLine(
-            img=frame, 
-            pt1=(cx, cy), 
-            pt2=(cx + dx, cy + dy), 
-            color=color, 
-            thickness=3, 
+            img=frame,
+            pt1=(cx, cy),
+            pt2=(cx + dx, cy + dy),
+            color=color,
+            thickness=3,
             line_type=cv2.LINE_AA,
             tipLength=0.3,
         )
@@ -163,16 +144,15 @@ def draw_headpose(
 # Gaze 벡터 표시
 def draw_gaze(
     frame: np.ndarray,
-    gazes: List[Gaze],
     tracks: List[Track],
     font_scale: float = 0.45,
     thickness: int = 1,
 ) -> None:
-    """
-    각 Track의 양쪽 눈 중앙에서 gaze 방향 벡터를 화살표로 표시한다.
-    gaze 수치는 headpose 텍스트 위쪽에 표시한다.
-    """
-    for track, gaze in zip(tracks, gazes):
+    """각 Track의 양쪽 눈 중앙에서 gaze 방향 벡터를 화살표로 표시한다."""
+    for track in tracks:
+        gaze = track.gaze
+        if gaze is None:
+            continue
         bbox = track.bbox
         color = _id_color(track.track_id)
 
@@ -233,7 +213,7 @@ def draw_roi(
         color = _id_color(t.track_id)
         cv2.putText(
             img=frame,
-            text=f"ROI:{t.in_roi} dwell:{t.dwell_frames}",
+            text=f"ROI:{t.roi.in_roi if t.roi else False} dwell:{t.roi.dwell_frames if t.roi else 0}",
             org=(t.bbox.x2, t.bbox.y1 - 54),     # gaze 텍스트(-36) 위
             fontFace=cv2.FONT_HERSHEY_SIMPLEX,
             fontScale=font_scale,
@@ -247,12 +227,14 @@ def draw_roi(
 def draw_look(
     frame: np.ndarray,
     tracks: List[Track],
-    look_results: List[LookResult],
     font_scale: float = 0.45,
     thickness: int = 1,
 ) -> None:
     """각 Track bbox 위에 LookResult(보고 있는지, 각도)를 표시한다."""
-    for track, lr in zip(tracks, look_results):
+    for track in tracks:
+        lr = track.look_result
+        if lr is None:
+            continue
         color = _id_color(track.track_id)
         cv2.putText(
             img=frame,

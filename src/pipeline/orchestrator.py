@@ -12,7 +12,7 @@
 
 from __future__ import annotations
 from dataclasses import dataclass
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List
 from src.models.bytetrack_tracker import ByteTrackTracker
 from src.models.face_openvino import FaceDetector
 from src.models.yolo_detector import YoloDetector
@@ -22,17 +22,13 @@ from src.models.eye_openvino import EyeDetector
 from src.models.gaze_openvino import GazeDetector
 from src.logic.stay import StayTracker
 from src.logic.look_judge import LookJudge
-from src.utils.types import Det, FrameMeta, HeadPose, Track, Gaze, LookResult, AttrMap
+from src.utils.types import Det, FrameMeta, Track
 
 
 @dataclass
 class OrchestratorOutput:
     dets: List[Det]
     tracks: List[Track]
-    attrs: AttrMap
-    headposes: List[Tuple[int, Optional[HeadPose], Optional[str]]]
-    gazes: List[Gaze]
-    look_results: List[LookResult]
 
 class Orchestrator:
     """
@@ -63,32 +59,22 @@ class Orchestrator:
         # 2) track
         tracks = self.tracker.update(dets)
 
-        # 3) crop face
+        # 3) crop face → track.crop_bbox
         tracks = self.face.detect_batch(frame, tracks)
 
-        # 4) attributes (age/gender)
-        attrs = self.mivolo.infer(frame, tracks)
+        # 4) headpose → track.headpose
+        tracks = self.headpose.infer_batch(frame, tracks)
 
-        # 5) headpose
-        headposes = self.headpose.infer_batch(frame, tracks)
-
-        # 6) crop eye
+        # 5) crop eye → track.left_eye, track.right_eye
         tracks = self.eye.detect_batch(frame, tracks)
 
-        # 7) gaze
-        gazes = self.gaze.detect_batch(frame, tracks, headposes)
+        # 6) gaze → track.gaze
+        tracks = self.gaze.detect_batch(frame, tracks)
 
-        # 8) ROI 판정
-        if self.stay_tracker is not None:
-            self.stay_tracker.update(tracks)
+        # 7) ROI 판정 → track.roi
+        tracks = self.stay_tracker.update(tracks)
 
-        # 9) 시선 판정
-        look_results = self.look_judge.judge_batch(gazes)
+        # 8) 시선 판정 → track.look_result
+        tracks = self.look_judge.judge_batch(tracks)
 
-        return OrchestratorOutput(
-            dets=dets, 
-            tracks=tracks,
-            attrs=attrs,
-            headposes=headposes, 
-            gazes=gazes, 
-            look_results=look_results)
+        return OrchestratorOutput(dets=dets, tracks=tracks)
