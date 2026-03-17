@@ -41,6 +41,7 @@ def draw_tracks(
             thickness=thickness,
             lineType=cv2.LINE_8,
         )
+
         cv2.putText(
             img=frame,
             text=f"id={t.track_id}",
@@ -51,6 +52,22 @@ def draw_tracks(
             thickness=thickness,
             lineType=cv2.LINE_AA,
         )
+
+        # 둘째 줄: gender / age_group
+        if t.attr is not None:
+            gender = getattr(t.attr.gender, "value", str(t.attr.gender))
+            age_group = getattr(t.attr.age_group, "value", str(t.attr.age_group))
+
+            cv2.putText(
+                img=frame,
+                text=f"{gender}, {age_group}",
+                org=(x1, max(0, y1 - 5)),
+                fontFace=cv2.FONT_HERSHEY_SIMPLEX,
+                fontScale=font_scale,
+                color=color,
+                thickness=thickness,
+                lineType=cv2.LINE_AA,
+            )
 
 
 # crop_bbox 그리기
