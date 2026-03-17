@@ -42,11 +42,10 @@ models:
   mivolo:
     device: "cpu"
     model: "weights/age_gender/model_imdb_cross_person_4.22_99.46.pth.tar"
-    repo_root: "/app/MiVOLO"
+    repo_root: "MiVOLO"
     min_face_size: 20
     min_person_size: 40
     use_persons: true
-    
 
 logic:
   roi:
@@ -54,3 +53,7 @@ logic:
     #polygon: [[200,1200],[800,1200],[800,1500],[200,1500]]
   attention:
     threshold_deg: 30.0
+
+output:
+  save_json: true
+  json_path: "data/output/status.json"

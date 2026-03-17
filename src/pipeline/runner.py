@@ -2,19 +2,22 @@
 # 여기서만 while 루프 돌고, 매 프레임 orch.process(frame, meta) 호출
 
 from __future__ import annotations
+
 import os
 import time
 from typing import Any, Dict, Union
+
 import cv2
 from loguru import logger
+
 from src.io.video_source import VideoSource
-#from src.logic.status import StatusTracker
+from src.logic.status import StatusTracker
 from src.vision.draw import draw_tracks, draw_crop_bbox, draw_fps, draw_headpose, draw_gaze, draw_roi, draw_look
 
 
 def run_loop(cfg: Dict[str, Any], source: Union[int, str], orch) -> None:
     vs = VideoSource(source)
-    #status = StatusTracker()
+    status = StatusTracker()
 
     # ── display ──────────────────────────────────────────────────
     disp_cfg = cfg.get("display", {})
@@ -29,11 +32,16 @@ def run_loop(cfg: Dict[str, Any], source: Union[int, str], orch) -> None:
     show_look = bool(disp_cfg.get("draw_look", True))               # LookResult 표시
     roi_pts = cfg.get("logic", {}).get("roi", {}).get("polygon", [])
 
-    # ── 비디오 출력 설정 ──────────────────────────────────────────
+    # ── 비디오 출력 설정(output) ──────────────────────────────────────────
+    out_cfg = cfg.get("output", {})
+    
     output_video = bool(disp_cfg.get("output_video", True))
     output_path = disp_cfg.get("output_video_path", "data/output/output.mp4")
-    writer = None
+    
+    output_json = bool(out_cfg.get("save_json", True))
+    output_json_path = out_cfg.get("json_path", "data/output/status.json")
 
+    writer = None
     if output_video:
         os.makedirs(os.path.dirname(output_path), exist_ok=True)    # 출력 폴더 자동 생성
         fourcc = cv2.VideoWriter_fourcc(*"mp4v")
@@ -55,7 +63,11 @@ def run_loop(cfg: Dict[str, Any], source: Union[int, str], orch) -> None:
 
             out = orch.process(frame, meta)
 
-            ########################## 60프레임마다 로그 출력   
+            # 상태 추적 업데이트
+            events = status.update(meta, out.tracks)
+
+            ########################## 60프레임마다 로그 출력
+            # 필요하면 디버그 로그   
             if meta.frame_idx % 60 == 0:
                 logger.info(
                     f"\n"
@@ -63,6 +75,7 @@ def run_loop(cfg: Dict[str, Any], source: Union[int, str], orch) -> None:
                     f"ts_ms={meta.ts_ms}\n"
                     f"dets={out.dets}\n"
                     f"tracks={out.tracks}"
+                    f"events={[(e.track_id, e.type) for e in events]}"
                 )
             ########################## 나중에 지우셔   
 
@@ -94,7 +107,15 @@ def run_loop(cfg: Dict[str, Any], source: Union[int, str], orch) -> None:
                 writer.write(frame)
 
     finally:
+        # 스트림 종료 시 마지막 상태 마감
+        status.finalize()
+
+        if output_json:
+            status.save_json(output_json_path)
+            logger.info(f"JSON output saved: {output_json_path}")
+
         if writer is not None:
             writer.release()
             logger.info(f"Output video saved: {output_path}")
+
         vs.release()    # 동영상 파일 닫기
