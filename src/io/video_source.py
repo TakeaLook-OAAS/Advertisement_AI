@@ -3,7 +3,6 @@
 # FPS/해상도/총프레임 같은 메타도 제공
 
 from __future__ import annotations
-import time
 from typing import Iterator, Tuple, Union
 import cv2
 from src.utils.types import FrameMeta
@@ -26,21 +25,19 @@ class VideoSource:
         self.height = int(self.cap.get(cv2.CAP_PROP_FRAME_HEIGHT) or 0)
 
         self._frame_idx = 0
-        self._start_time = time.time()
 
     def read(self) -> Tuple[bool, "cv2.Mat", FrameMeta]:
         ok, frame = self.cap.read()     # VideoCapture의 read함수의 반환값은 ret(bool)과 frame(numpy배열->ex: 1280x720x3)
+        ts_ms = int(self.cap.get(cv2.CAP_PROP_POS_MSEC))  # 영상 자체 타임스탬프 (ms)
         if not ok:
             meta = FrameMeta(
                 frame_idx=self._frame_idx,
-                ts_ms=int((time.time() - self._start_time) * 1000),
+                ts_ms=ts_ms,
                 fps=self.fps if self.fps > 0 else 0.0,
                 width=self.width,
                 height=self.height,
             )
             return False, frame, meta
-
-        ts_ms = int((time.time() - self._start_time) * 1000)
         meta = FrameMeta(
             frame_idx=self._frame_idx,
             ts_ms=ts_ms,

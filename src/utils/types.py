@@ -1,7 +1,7 @@
 # src/utils/types.py
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import Enum
 from typing import Dict, List, Optional, Tuple
 
@@ -27,8 +27,8 @@ class Track:
     - bbox: 원본 프레임 기준 픽셀 좌표(xyxy)
     - crop_bbox: 얼굴 영역 기준 픽셀 좌표(xyxy)
     - left_eye, right_eye: 눈 영역 기준 픽셀 좌표(xyxy)
-    - age: 처음 등장한 이후 경과한 프레임 수
-    - hits: 매칭/확정된 프레임 수
+    - lifetime: yolo에서 처음 검출한 순간부터 지금까지의 프레임 수
+    - hits: lifetime 중에서 yolo가 탐지한 프레임 수
 
     아래 값들은 보통 ROI/체류 로직에서 채움(트래커 자체가 아니라):
     - in_roi: ROI 내부 여부
@@ -47,9 +47,9 @@ class Track:
     roi: Optional[ROI] = None
     look_result: Optional[LookResult] = None
 
-    age: int = 0
+    lifetime: int = 0
     hits: int = 0
-    conf: float = 0.0    # 트래커가 반환하는 현재 신뢰도
+    conf: float = 0.0    # yolo 검출 신뢰도
 
 
 # Yolo
@@ -134,11 +134,13 @@ class Gender(str, Enum):
     unknown = "unknown"
 
 class AgeGroup(str, Enum):
-    child = "child"         # 예: 0-12
-    teen = "teen"           # 13-19
-    young = "young_adult"   # 20-29
-    adult = "adult"         # 30-49
-    senior = "senior"       # 50+
+    age_0_9 = "0-9"
+    age_10_19 = "10-19"
+    age_20_29 = "20-29"
+    age_30_39 = "30-39"
+    age_40_49 = "40-49"
+    age_50_59 = "50-59"
+    age_60_plus = "60+"
     unknown = "unknown"
 
 @dataclass(frozen=True)
@@ -148,6 +150,8 @@ class PersonAttr:
     """
     gender: Gender
     age_group: AgeGroup
+
+AttrMap = Dict[int, PersonAttr]   # track_id -> PersonAttr
 
 
 # ROI 체류 판정
@@ -175,33 +179,49 @@ class LookResult:
     score: float
     angle_deg: float
 
-class EventType(str, Enum):
-    # 유동/체류/관심 집계를 위한 최소 이벤트들
-    pass_by = "pass_by"             # 유동(ROI 근처/통과) 판정
-    enter_roi = "enter_roi"
-    exit_roi = "exit_roi"
-    dwell_start = "dwell_start"
-    dwell_end = "dwell_end"
-    look_start = "look_start"
-    look_end = "look_end"
-    # 추가해야됨
 
-@dataclass(frozen=True)
-class Event:
+
+# ── 상태 추적용 (status.py에서 사용) ──
+
+@dataclass
+class LookInterval:
+    """시선 구간 1개. 보기 시작~끝."""
+    start_ms: int
+    end_ms: int
+
+@dataclass
+class PersonState:
     """
-    이벤트 기반 로깅 레코드입니다(JSONL로 저장하기 좋게 설계).
-
-    - payload: 필요한 값(각도, 점수, bbox 등)을 자유롭게 추가할 수 있습니다.
+    track_id별 누적 상태. 매 프레임 Track 리스트와 비교해서 갱신한다.
     """
-    ts_ms: int                  # 사건이 일어난 시간
-    frame_idx: int              # 몇 번째 프레임인지
-    track_id: int               # 어떤 사람인지
-    type: EventType             # 이벤트 종류(들어온 사건, 머문 사건, 본 사건)  
-    payload: Dict[str, object]
+    # ── 식별 ──
+    track_id: int
 
+    # ── 노출 시간 ──
+    first_seen_ms: int          # 처음 나타난 시간
+    last_seen_ms: int           # 마지막으로 본 시간 (매 프레임 갱신)
+    is_active: bool = True      # 아직 화면에 있는지 (사라지면 False)
 
-# ----------------------------
-# Convenience types
-# ----------------------------
+    # ── 이전 프레임 상태 (다음 프레임과 비교용) ──
+    is_looking: bool = False    # 이전 프레임에서 보고 있었는지
+    in_roi: bool = False        # 이전 프레임에서 ROI 안에 있었는지
 
-AttrMap = Dict[int, PersonAttr]   # track_id -> PersonAttr
+    # ── 시선 구간 기록 ──
+    look_intervals: List[LookInterval] = field(default_factory=list)
+    current_look_start_ms: Optional[int] = None   # 보기 시작한 시점 (None이면 안 보는 중)
+
+    # ── 인구통계 ──
+    age_group: Optional[str] = None
+    gender: Optional[str] = None
+
+@dataclass
+class AdSegmentInfo:
+    """
+    ad_cycle.py에서 사용하는 광고 세그먼트 정보
+    """
+    segment_index: int      # 0, 1, 2, ... (계속 증가)
+    ad_name: str            # "brand_A"
+    cycle_index: int        # ads 리스트 내 인덱스 (순환)
+    start_ms: int           # 이 세그먼트의 상대 시작 시간
+    end_ms: int             # 이 세그먼트의 상대 종료 시간
+    wall_start: str         # 세그먼트 절대 시작 시각 (ISO 8601)

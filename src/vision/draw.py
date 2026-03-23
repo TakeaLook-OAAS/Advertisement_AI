@@ -53,22 +53,6 @@ def draw_tracks(
             lineType=cv2.LINE_AA,
         )
 
-        # 둘째 줄: gender / age_group
-        if t.attr is not None:
-            gender = getattr(t.attr.gender, "value", str(t.attr.gender))
-            age_group = getattr(t.attr.age_group, "value", str(t.attr.age_group))
-
-            cv2.putText(
-                img=frame,
-                text=f"{gender}, {age_group}",
-                org=(x1, max(0, y1 - 5)),
-                fontFace=cv2.FONT_HERSHEY_SIMPLEX,
-                fontScale=font_scale,
-                color=color,
-                thickness=thickness,
-                lineType=cv2.LINE_AA,
-            )
-
 
 # crop_bbox 그리기
 def draw_crop_bbox(
@@ -222,7 +206,7 @@ def draw_roi(
             frame,
             [pts], 
             isClosed=True, 
-            color=(0, 0, 0), 
+            color=(255, 255, 255), 
             thickness=2, 
             lineType=cv2.LINE_AA)
 
@@ -257,6 +241,32 @@ def draw_look(
             img=frame,
             text=f"Look:{lr.is_looking} Degree:{lr.angle_deg:.1f}",
             org=(track.bbox.x2, track.bbox.y1 - 72),   # ROI 텍스트(-54) 위
+            fontFace=cv2.FONT_HERSHEY_SIMPLEX,
+            fontScale=font_scale,
+            color=color,
+            thickness=thickness,
+            lineType=cv2.LINE_AA,
+        )
+
+
+# gender, age_group 표시
+def draw_gender_age(
+    frame: np.ndarray,
+    tracks: List[Track],
+    font_scale: float = 0.45,
+    thickness: int = 1,
+) -> None:
+    """각 Track bbox 위에 gender, age_group를 표시한다. id 텍스트 바로 위."""
+    for track in tracks:
+        attr = track.attr
+        if attr is None:
+            continue
+        color = _id_color(track.track_id)
+        x1, y1 = track.bbox.x1, track.bbox.y1
+        cv2.putText(
+            img=frame,
+            text=f"{attr.gender.value}, {attr.age_group.value}",
+            org=(x1, max(0, y1 - 25)),
             fontFace=cv2.FONT_HERSHEY_SIMPLEX,
             fontScale=font_scale,
             color=color,

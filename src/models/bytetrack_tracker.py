@@ -15,7 +15,7 @@ class _T:
     box:  np.ndarray   # [x1, y1, x2, y2]
     conf: float
     hits: int = 0
-    age:  int = 0
+    lifetime:  int = 0
     lost: int = 0
 
 
@@ -80,23 +80,23 @@ class ByteTrackTracker:
         m1, unm_t, unm_d1 = _match(self._tracks, hi_b, self.iou_th)
         for ti, di in m1:
             t = self._tracks[ti]
-            t.box, t.conf, t.hits, t.age, t.lost = hi_b[di], hi[di].conf, t.hits+1, t.age+1, 0
+            t.box, t.conf, t.hits, t.age, t.lost = hi_b[di], hi[di].conf, t.hits+1, t.lifetime+1, 0
 
         # 2차 매칭: 미매칭 트랙 ↔ 저신뢰도
         pool = [self._tracks[i] for i in unm_t]
         m2, unm_t2, _ = _match(pool, lo_b, self.iou_th)
         for ti, di in m2:
             t = pool[ti]
-            t.box, t.conf, t.hits, t.age, t.lost = lo_b[di], lo[di].conf, t.hits+1, t.age+1, 0
+            t.box, t.conf, t.hits, t.age, t.lost = lo_b[di], lo[di].conf, t.hits+1, t.lifetime+1, 0
 
         # 미매칭 트랙 → lost++
         for i in unm_t2:
             pool[i].lost += 1
-            pool[i].age  += 1
+            pool[i].lifetime  += 1
 
         # 미매칭 고신뢰도 검출 → 새 트랙
         for di in unm_d1:
-            self._tracks.append(_T(id=self._next_id, box=hi_b[di], conf=hi[di].conf, hits=1, age=1))
+            self._tracks.append(_T(id=self._next_id, box=hi_b[di], conf=hi[di].conf, hits=1, lifetime=1))
             self._next_id += 1
 
         # max_lost 초과 트랙 제거
@@ -107,7 +107,7 @@ class ByteTrackTracker:
             Track(
                 track_id=t.id,
                 bbox=BBoxXYXY(int(t.box[0]), int(t.box[1]), int(t.box[2]), int(t.box[3])),
-                age=t.age,
+                lifetime=t.lifetime,
                 hits=t.hits,
                 conf=t.conf,
             )
