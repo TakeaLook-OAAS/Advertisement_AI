@@ -52,7 +52,7 @@ class Orchestrator:
         self.stay_tracker = StayTracker(roi_pts) if roi_pts else None
         self.look_judge = LookJudge(cfg.get("logic", {}).get("attention", {}))
 
-    def process(self, frame, meta: FrameMeta) -> OrchestratorOutput:
+    def process(self, frame) -> OrchestratorOutput:
         # 1) detect
         dets = self.detector.detect(frame)
 

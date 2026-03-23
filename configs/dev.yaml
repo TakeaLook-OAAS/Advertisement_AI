@@ -1,9 +1,9 @@
 # Dev overrides
-source: "data/samples/test2.mp4"
+source: "data/samples/test5.mp4"
 
 display:
   output_video: true
-  output_video_path: "data/output/output_test2.mp4"
+  output_video_path: "data/output/output_test5.mp4"
   font_scale: 0.7
   thickness: 2
   draw_bbox: true
@@ -13,6 +13,7 @@ display:
   draw_gaze: true
   draw_roi: true
   draw_look: true
+  draw_gender_age: true
 
 models:
   yolo:
@@ -41,7 +42,7 @@ models:
     weights: "weights/gaze/gaze-estimation-adas-0002.xml"
   mivolo:
     device: "cpu"
-    model: "weights/age_gender/model_imdb_cross_person_4.22_99.46.pth.tar"
+    model: "weights/age_gender/model_imdb_cross_person_4.22_99.46.pth"
     repo_root: "MiVOLO"
     min_face_size: 20
     min_person_size: 40
@@ -49,11 +50,18 @@ models:
 
 logic:
   roi:
-    polygon: [[1000,1000],[3000,1000],[3000,2000],[1000,2000]]
-    #polygon: [[200,1200],[800,1200],[800,1500],[200,1500]]
+    #polygon: [[0,0],[3840,0],[3840,2160],[0,2160]]
+    polygon: [[0,0],[1920,0],[1920,1080],[0,1080]]
   attention:
     threshold_deg: 30.0
 
 output:
-  save_json: true
-  json_path: "data/output/status.json"
+  json_dir: "data/output/segments/"
+  ad_cycle:
+    ads:
+      - name: "brand_A"
+        duration_s: 2
+      - name: "brand_B"
+        duration_s: 3
+      - name: "brand_C"
+        duration_s: 1

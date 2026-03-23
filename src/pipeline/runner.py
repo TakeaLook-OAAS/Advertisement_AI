@@ -11,8 +11,9 @@ import cv2
 from loguru import logger
 
 from src.io.video_source import VideoSource
+from src.logic.ad_cycle import AdCycleScheduler
 from src.logic.status import StatusTracker
-from src.vision.draw import draw_tracks, draw_crop_bbox, draw_fps, draw_headpose, draw_gaze, draw_roi, draw_look
+from src.vision.draw import draw_tracks, draw_crop_bbox, draw_fps, draw_headpose, draw_gaze, draw_roi, draw_look, draw_gender_age
 
 
 def run_loop(cfg: Dict[str, Any], source: Union[int, str], orch) -> None:
@@ -30,6 +31,7 @@ def run_loop(cfg: Dict[str, Any], source: Union[int, str], orch) -> None:
     show_gaze = bool(disp_cfg.get("draw_gaze", True))               # gaze + gaze vector 표시
     show_roi = bool(disp_cfg.get("draw_roi", True))                 # ROI 폴리곤 + in_roi 표시
     show_look = bool(disp_cfg.get("draw_look", True))               # LookResult 표시
+    show_gender_age = bool(disp_cfg.get("draw_gender_age", True))   # gender, age_group 표시
     roi_pts = cfg.get("logic", {}).get("roi", {}).get("polygon", [])
 
     # ── 비디오 출력 설정(output) ──────────────────────────────────────────
@@ -38,8 +40,13 @@ def run_loop(cfg: Dict[str, Any], source: Union[int, str], orch) -> None:
     output_video = bool(disp_cfg.get("output_video", True))
     output_path = disp_cfg.get("output_video_path", "data/output/output.mp4")
     
-    output_json = bool(out_cfg.get("save_json", True))
-    output_json_path = out_cfg.get("json_path", "data/output/status.json")
+    # ── 광고 사이클 설정 (항상 활성화) ──────────────────────────────
+    ad_cycle_cfg = out_cfg.get("ad_cycle", {})
+    json_dir = out_cfg.get("json_dir", "data/output/segments/")
+
+    scheduler = AdCycleScheduler(ad_cycle_cfg["ads"])
+    os.makedirs(json_dir, exist_ok=True)
+    logger.info(f"Ad cycle: {len(ad_cycle_cfg['ads'])} ads, json_dir={json_dir}")
 
     writer = None
     if output_video:
@@ -61,10 +68,23 @@ def run_loop(cfg: Dict[str, Any], source: Union[int, str], orch) -> None:
                 logger.info("End of stream.")
                 break
 
-            out = orch.process(frame, meta)
+            out = orch.process(frame)
 
             # 상태 추적 업데이트
-            events = status.update(meta, out.tracks)
+            status.update(meta, out.tracks)
+
+            # 광고 경계 체크 → 세그먼트 JSON 내보내기
+            while True:
+                completed = scheduler.check(meta.ts_ms)
+                if completed is None:
+                    break
+                segment_data = status.flush_segment(completed)
+                seg_path = os.path.join(
+                    json_dir,
+                    f"segment_{completed.segment_index:03d}_{completed.ad_name}.json",
+                )
+                status.save_segment_json(seg_path, segment_data)
+                logger.info(f"Ad segment exported: {seg_path}")
 
             ########################## 60프레임마다 로그 출력
             # 필요하면 디버그 로그   
@@ -75,7 +95,6 @@ def run_loop(cfg: Dict[str, Any], source: Union[int, str], orch) -> None:
                     f"ts_ms={meta.ts_ms}\n"
                     f"dets={out.dets}\n"
                     f"tracks={out.tracks}"
-                    f"events={[(e.track_id, e.type) for e in events]}"
                 )
             ########################## 나중에 지우셔   
 
@@ -101,6 +120,8 @@ def run_loop(cfg: Dict[str, Any], source: Union[int, str], orch) -> None:
                 draw_roi(frame, out.tracks, roi_pts, font_scale, thickness)
             if show_look:           # LookResult
                 draw_look(frame, out.tracks, font_scale, thickness)
+            if show_gender_age:     # gender, age_group
+                draw_gender_age(frame, out.tracks, font_scale, thickness)
 
             # 비디오 파일로 기록
             if writer is not None:
@@ -110,9 +131,15 @@ def run_loop(cfg: Dict[str, Any], source: Union[int, str], orch) -> None:
         # 스트림 종료 시 마지막 상태 마감
         status.finalize()
 
-        if output_json:
-            status.save_json(output_json_path)
-            logger.info(f"JSON output saved: {output_json_path}")
+        # 마지막 미완료 세그먼트도 내보내기
+        final = scheduler.current_segment()
+        segment_data = status.flush_segment(final)
+        seg_path = os.path.join(
+            json_dir,
+            f"segment_{final.segment_index:03d}_{final.ad_name}.json",
+        )
+        status.save_segment_json(seg_path, segment_data)
+        logger.info(f"Final ad segment exported: {seg_path}")
 
         if writer is not None:
             writer.release()

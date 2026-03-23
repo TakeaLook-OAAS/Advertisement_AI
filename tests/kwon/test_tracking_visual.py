@@ -65,7 +65,7 @@ def draw_tracks(vis: np.ndarray, tracks: list, font_scale: float = 0.6) -> np.nd
         x1, y1, x2, y2 = t.bbox.x1, t.bbox.y1, t.bbox.x2, t.bbox.y2
         color = _id_color(t.track_id)
         cv2.rectangle(vis, (x1, y1), (x2, y2), color, 2)
-        label = f"#{t.track_id}  conf={t.conf:.2f}  age={t.age}"
+        label = f"#{t.track_id}  conf={t.conf:.2f}  lifetime={t.lifetime}"
         cv2.putText(vis, label, (x1, max(y1 - 6, 15)),
                     cv2.FONT_HERSHEY_SIMPLEX, font_scale,
                     (255, 255, 255), 1, cv2.LINE_AA)

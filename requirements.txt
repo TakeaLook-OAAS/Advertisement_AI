@@ -16,6 +16,9 @@ torch==2.1.0+cpu
 torchvision==0.16.0+cpu
 sixdrepnet==0.1.6
 
+# MiVOLO age/gender
+timm==0.8.13.dev0
+
 # YOLO detection
 ultralytics==8.4.14
 

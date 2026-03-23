@@ -93,29 +93,29 @@ class MiVOLOAttr:
         return tracks
 
     def _infer_one(self, frame: np.ndarray, track: Track) -> Optional[PersonAttr]:
-        logger.info(
-            f"[MiVOLOAttr] track_id={track.track_id}, "
-            f"person_bbox={track.bbox}, face_bbox={track.crop_bbox}"
-        )
+        # logger.info(
+        #     f"[MiVOLOAttr] track_id={track.track_id}, "
+        #     f"person_bbox={track.bbox}, face_bbox={track.crop_bbox}"
+        # )
 
         face_img = self._crop_face(frame, track)
         if face_img is None:
-            logger.warning(f"[MiVOLOAttr] no valid face crop for track_id={track.track_id}")
+            # logger.warning(f"[MiVOLOAttr] no valid face crop for track_id={track.track_id}")
             return None
 
         person_img = None
         if self.use_persons:
             person_img = self._crop_person(frame, track)
             if person_img is None:
-                logger.warning(f"[MiVOLOAttr] no valid person crop for track_id={track.track_id}")
+                # logger.warning(f"[MiVOLOAttr] no valid person crop for track_id={track.track_id}")
                 return None
 
         try:
             pred = self._predict(face_img, person_img)
         except Exception:
-            logger.exception(
-                f"[MiVOLOAttr] prediction failed for track_id={track.track_id}"
-            )
+            # logger.exception(
+            #     f"[MiVOLOAttr] prediction failed for track_id={track.track_id}"
+            # )
             return None
 
         if pred is None:
@@ -123,10 +123,10 @@ class MiVOLOAttr:
 
         age, gender_value = pred
 
-        logger.info(
-            f"[MiVOLOAttr] parsed pred for track_id={track.track_id}: "
-            f"age={age}, gender={gender_value}"
-        )
+        # logger.info(
+        #     f"[MiVOLOAttr] parsed pred for track_id={track.track_id}: "
+        #     f"age={age}, gender={gender_value}"
+        # )
 
         return PersonAttr(
             gender=self._to_gender(gender_value),
@@ -232,18 +232,18 @@ class MiVOLOAttr:
             import torch
             model_input = torch.from_numpy(model_input).to(self.model.device)
 
-            logger.info(
-                f"[MiVOLOAttr] face+person input shape={tuple(model_input.shape)}"
-            )
+            # logger.info(
+            #     f"[MiVOLOAttr] face+person input shape={tuple(model_input.shape)}"
+            # )
         else:
             model_input = faces_input
-            logger.info(
-                f"[MiVOLOAttr] face-only input shape={tuple(model_input.shape)}"
-            )
+            # logger.info(
+            #     f"[MiVOLOAttr] face-only input shape={tuple(model_input.shape)}"
+            # )
 
         output = self.model.inference(model_input)
 
-        logger.info(f"[MiVOLOAttr] raw output shape={tuple(output.shape)}")
+        # logger.info(f"[MiVOLOAttr] raw output shape={tuple(output.shape)}")
 
         if self.model.meta.only_age:
             age_output = output
@@ -288,16 +288,20 @@ class MiVOLOAttr:
         except (TypeError, ValueError):
             return AgeGroup.unknown
 
-        if 0 <= age <= 12:
-            return AgeGroup.child
-        if 13 <= age <= 19:
-            return AgeGroup.teen
+        if 0 <= age <= 9:
+            return AgeGroup.age_0_9
+        if 10 <= age <= 19:
+            return AgeGroup.age_10_19
         if 20 <= age <= 29:
-            return AgeGroup.young
-        if 30 <= age <= 49:
-            return AgeGroup.adult
-        if age >= 50:
-            return AgeGroup.senior
+            return AgeGroup.age_20_29
+        if 30 <= age <= 39:
+            return AgeGroup.age_30_39
+        if 40 <= age <= 49:
+            return AgeGroup.age_40_49
+        if 50 <= age <= 59:
+            return AgeGroup.age_50_59
+        if age >= 60:
+            return AgeGroup.age_60_plus
 
         return AgeGroup.unknown
 
