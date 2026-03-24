@@ -4,6 +4,7 @@ __pycache__/
 .env
 
 # Outputs
+data/benchmark/*
 data/output/*
 data/samples/*
 !data/**/.gitkeep
