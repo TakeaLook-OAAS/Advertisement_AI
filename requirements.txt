@@ -19,6 +19,9 @@ sixdrepnet==0.1.6
 # MiVOLO age/gender
 timm==0.8.13.dev0
 
+# ByteTrack (linear assignment)
+lapx==0.5.2
+
 # YOLO detection
 ultralytics==8.4.14
 

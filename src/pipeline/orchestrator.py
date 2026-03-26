@@ -13,7 +13,7 @@
 from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Dict, List
-from src.models.bytetrack_tracker import ByteTrackTracker
+from src.models.bytetrack_tracker import OfficialByteTrackAdapter
 from src.models.face_openvino import FaceDetector
 from src.models.yolo_detector import YoloDetector
 from src.models.mivolo_attr import MiVOLOAttr
@@ -40,7 +40,7 @@ class Orchestrator:
         self.cfg = cfg
         # models
         self.detector = YoloDetector(cfg.get("models", {}).get("yolo", {}))
-        self.tracker = ByteTrackTracker(cfg.get("models", {}).get("tracker", {}))
+        self.tracker = OfficialByteTrackAdapter(cfg.get("models", {}).get("tracker", {}))
         self.face = FaceDetector(cfg.get("models", {}).get("face", {}))
         self.mivolo = MiVOLOAttr(cfg.get("models", {}).get("mivolo", {}))
         self.headpose = HeadPoseEstimator(cfg.get("models", {}).get("headpose", {}))
