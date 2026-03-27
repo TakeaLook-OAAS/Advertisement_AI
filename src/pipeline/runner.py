@@ -19,8 +19,8 @@ from src.vision.draw import draw_tracks, draw_crop_bbox, draw_fps, draw_headpose
 def run_loop(cfg: Dict[str, Any], source: Union[int, str], orch) -> None:
     vs = VideoSource(source)
     status = StatusTracker()
-    status.set_device_id(cfg.get("device_id", ""))
-    status.set_roi_polygon(cfg.get("logic", {}).get("roi", {}).get("polygon", []))
+    roi_polygon = cfg.get("logic", {}).get("roi", {}).get("polygon", [])
+    status.set_roi_polygon(roi_polygon)
 
     # ── display ──────────────────────────────────────────────────
     disp_cfg = cfg.get("display", {})
@@ -108,26 +108,24 @@ def run_loop(cfg: Dict[str, Any], source: Union[int, str], orch) -> None:
             if dt > 0:
                 fps = 1.0 / dt
 
-            # draw
-            if show_bbox:           # bbox + ID
-                draw_tracks(frame, out.tracks, font_scale, thickness)
-            if show_crop_bbox:      # face bbox
-                draw_crop_bbox(frame, out.tracks, thickness)
-            if show_fps:            # FPS
-                draw_fps(frame, fps, font_scale, thickness)
-            if show_headpose:       # headpose + headpose vector
-                draw_headpose(frame, out.tracks, font_scale, thickness)
-            if show_gaze:           # gaze + gaze vector
-                draw_gaze(frame, out.tracks, font_scale, thickness)
-            if show_roi:            # ROI 폴리곤 + in_roi
-                draw_roi(frame, out.tracks, roi_pts, font_scale, thickness)
-            if show_look:           # LookResult
-                draw_look(frame, out.tracks, font_scale, thickness)
-            if show_gender_age:     # gender, age_group
-                draw_gender_age(frame, out.tracks, font_scale, thickness)
-
-            # 비디오 파일로 기록
+            # draw + 비디오 기록 (output_video=false면 스킵)
             if writer is not None:
+                if show_bbox:           # bbox + ID
+                    draw_tracks(frame, out.tracks, font_scale, thickness)
+                if show_crop_bbox:      # face bbox
+                    draw_crop_bbox(frame, out.tracks, thickness)
+                if show_fps:            # FPS
+                    draw_fps(frame, fps, font_scale, thickness)
+                if show_headpose:       # headpose + headpose vector
+                    draw_headpose(frame, out.tracks, font_scale, thickness)
+                if show_gaze:           # gaze + gaze vector
+                    draw_gaze(frame, out.tracks, font_scale, thickness)
+                if show_roi:            # ROI 폴리곤 + in_roi
+                    draw_roi(frame, out.tracks, roi_pts, font_scale, thickness)
+                if show_look:           # LookResult
+                    draw_look(frame, out.tracks, font_scale, thickness)
+                if show_gender_age:     # gender, age_group
+                    draw_gender_age(frame, out.tracks, font_scale, thickness)
                 writer.write(frame)
 
     finally:

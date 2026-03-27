@@ -3,8 +3,8 @@ device_id: "cam_01"
 source: "data/samples/test5.mp4"
 
 display:
-  output_video: true
-  output_video_path: "data/output/output_test5.mp4"
+  output_video: false
+  output_video_path: "data/output/output_test5_official_bytetrack.mp4"
   font_scale: 0.7
   thickness: 2
   draw_bbox: true

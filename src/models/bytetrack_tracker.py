@@ -5,6 +5,7 @@ from typing import Any, Dict, List
 
 import numpy as np
 
+from types import SimpleNamespace
 from src.utils.types import BBoxXYXY, Det, Track
 
 
@@ -117,3 +118,65 @@ class ByteTrackTracker:
     def reset(self) -> None:
         self._tracks.clear()
         self._next_id = 1
+
+
+# ── 공식 ByteTrack 어댑터 ──────────────────────────────────
+
+class OfficialByteTrackAdapter:
+    """
+    공식 ByteTrack(BYTETracker)을 감싸서
+    기존 인터페이스와 동일하게 사용할 수 있는 어댑터.
+
+    입력: List[Det]  →  출력: List[Track]
+    """
+
+    def __init__(self, cfg: Dict[str, Any]):
+        from src.models.tracker.byte_tracker import BYTETracker
+
+        self._args = SimpleNamespace(
+            track_thresh=float(cfg.get("track_thresh", 0.5)),
+            track_buffer=int(cfg.get("track_buffer", 30)),
+            match_thresh=float(cfg.get("match_thresh", 0.8)),
+            mot20=bool(cfg.get("mot20", False)),
+        )
+        fps = int(cfg.get("fps", 30))
+        self._tracker = BYTETracker(self._args, frame_rate=fps)
+        self._img_h = int(cfg.get("img_h", 1080))
+        self._img_w = int(cfg.get("img_w", 1920))
+
+    def update(self, dets: List[Det]) -> List[Track]:
+        if len(dets) == 0:
+            results = np.empty((0, 5), dtype=np.float32)
+        else:
+            results = np.array(
+                [[d.bbox.x1, d.bbox.y1, d.bbox.x2, d.bbox.y2, d.conf]
+                 for d in dets],
+                dtype=np.float32,
+            )
+
+        # img_info == img_size → 스케일링 없이 원본 좌표 그대로 사용
+        img_info = [self._img_h, self._img_w]
+        img_size = [self._img_h, self._img_w]
+
+        stracks = self._tracker.update(results, img_info, img_size)
+
+        tracks: List[Track] = []
+        for st in stracks:
+            tlbr = st.tlbr
+            x1 = max(0, min(int(tlbr[0]), self._img_w))
+            y1 = max(0, min(int(tlbr[1]), self._img_h))
+            x2 = max(0, min(int(tlbr[2]), self._img_w))
+            y2 = max(0, min(int(tlbr[3]), self._img_h))
+            if x2 - x1 < 1 or y2 - y1 < 1:
+                continue
+            tracks.append(Track(
+                track_id=st.track_id,
+                bbox=BBoxXYXY(x1, y1, x2, y2),
+                conf=st.score,
+                lifetime=st.frame_id - st.start_frame,
+                hits=st.tracklet_len,
+            ))
+        return tracks
+
+    def reset(self) -> None:
+        self._tracker = type(self._tracker)(self._args, frame_rate=30)
