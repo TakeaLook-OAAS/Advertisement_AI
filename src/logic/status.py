@@ -23,8 +23,7 @@ class StatusTracker:
 
     최종 목표:
     - exposure: 영상에 들어왔다가 나간 시간
-    - look_times: 본 시간 구간들
-    - total_look_duration_ms
+    - look_times: 본 시간 구간들 (각 구간에 in_roi 포함)
     - age_group
     - gender
     """
@@ -33,6 +32,14 @@ class StatusTracker:
         self._states: Dict[int, PersonState] = {}
         self._frame_interval_ms: int = 33  # 기본값(약 30fps)
         self._segment_start_ms: int = 0    # 현재 세그먼트의 시작 시간
+        self._roi_polygon: List[List[int]] = []  # ROI 폴리곤 좌표
+        self._device_id: str = ""          # 카메라 식별자
+
+    def set_roi_polygon(self, polygon: List[List[int]]) -> None:
+        self._roi_polygon = polygon
+
+    def set_device_id(self, device_id: str) -> None:
+        self._device_id = device_id
 
     def _update_frame_interval(self, meta: FrameMeta) -> None:
         if meta.fps > 0:
@@ -74,12 +81,12 @@ class StatusTracker:
                 if gender_value is not None:
                     state.gender = getattr(gender_value, "value", str(gender_value))
 
-            # 3) ROI 변화 감지
+            # 3) ROI 상태 갱신
             now_in_roi = bool(track.roi and track.roi.in_roi)
             state.in_roi = now_in_roi
 
-            # 4) 시선 변화 감지(ROI 안에 있는 사람들만 감지함)
-            now_looking = bool(track.roi and track.roi.in_roi and track.look_result and track.look_result.is_looking)
+            # 4) 시선 변화 감지
+            now_looking = bool(track.look_result and track.look_result.is_looking)
 
             if now_looking and not state.is_looking:
                 # False → True: 보기 시작
@@ -89,7 +96,11 @@ class StatusTracker:
                 # True → False: 보기 끝남 → 구간 저장
                 if state.current_look_start_ms is not None:
                     state.look_intervals.append(
-                        LookInterval(start_ms=state.current_look_start_ms, end_ms=meta.ts_ms)
+                        LookInterval(
+                            start_ms=state.current_look_start_ms,
+                            end_ms=meta.ts_ms,
+                            in_roi=now_in_roi,
+                        )
                     )
                     state.current_look_start_ms = None
 
@@ -108,12 +119,16 @@ class StatusTracker:
             # 보다가 사라짐 → 시선 구간 강제 종료
             if state.is_looking and state.current_look_start_ms is not None:
                 state.look_intervals.append(
-                    LookInterval(start_ms=state.current_look_start_ms, end_ms=end_ms)
+                    LookInterval(
+                        start_ms=state.current_look_start_ms,
+                        end_ms=end_ms,
+                        in_roi=state.in_roi,
+                    )
                 )
                 state.current_look_start_ms = None
-                state.is_looking = False
 
             state.in_roi = False
+            state.is_looking = False
             state.is_active = False
 
     # ──────────────────────────────────────────────
@@ -137,7 +152,11 @@ class StatusTracker:
             # 열린 시선 구간 → boundary에서 강제 종료
             if state.current_look_start_ms is not None:
                 state.look_intervals.append(
-                    LookInterval(start_ms=state.current_look_start_ms, end_ms=boundary_ms)
+                    LookInterval(
+                        start_ms=state.current_look_start_ms,
+                        end_ms=boundary_ms,
+                        in_roi=state.in_roi,
+                    )
                 )
                 state.current_look_start_ms = None
 
@@ -178,11 +197,12 @@ class StatusTracker:
 
         return {
             "segment": {
+                "device_id": self._device_id,
                 "index": segment_info.segment_index,
-                "ad_name": segment_info.ad_name,
                 "cycle_index": segment_info.cycle_index,
                 "timestamp": segment_info.wall_start,
                 "duration_ms": segment_info.end_ms - segment_info.start_ms,
+                "roi_polygon": self._roi_polygon,
             },
             "tracks": summaries,
         }
@@ -199,7 +219,11 @@ class StatusTracker:
             end_ms = state.last_seen_ms
             if state.current_look_start_ms is not None:
                 state.look_intervals.append(
-                    LookInterval(start_ms=state.current_look_start_ms, end_ms=end_ms)
+                    LookInterval(
+                        start_ms=state.current_look_start_ms,
+                        end_ms=end_ms,
+                        in_roi=state.in_roi,
+                    )
                 )
                 state.current_look_start_ms = None
             state.is_active = False
@@ -213,26 +237,22 @@ class StatusTracker:
         start = max(0, state.first_seen_ms - base_ms)
         end = max(0, state.last_seen_ms - base_ms)
 
-        # 1500ms 미만의 시선 구간은 노이즈로 제외
+        # 500ms 미만의 시선 구간은 노이즈로 제외
         look_times = []
         for interval in state.look_intervals:
             s = max(0, interval.start_ms - base_ms)
             e = max(0, interval.end_ms - base_ms)
-            duration = max(0, e - s)
-            if duration >= 1500:
-                look_times.append({"start_ms": s, "end_ms": e, "duration_ms": duration})
-
-        total_look_ms = sum(lt["duration_ms"] for lt in look_times)
+            if e - s >= 500:  # look_judge가 True인 기간이 0.5초 이상일 때만 기록
+                look_times.append({"start_ms": s, "end_ms": e, "in_roi": interval.in_roi})
 
         return {
             "track_id": state.track_id,
             "exposure": {
                 "start_ms": start,
                 "end_ms": end,
-                "exposure_ms": max(0, end - start),
             },
             "look_times": look_times,
-            "total_look_duration_ms": total_look_ms,
+            "total_look_duration_ms": sum(lt["end_ms"] - lt["start_ms"] for lt in look_times),
             "age_group": state.age_group,
             "gender": state.gender,
         }
@@ -249,19 +269,25 @@ class StatusTracker:
 
 {
   "segment": {
+    "device_id": "cam_01",
     "index": 0,
-    "ad_name": "brand_A",
     "cycle_index": 0,
-    "timestamp": "2026-03-21T14:30:00",
-    "duration_ms": 15000
+    "timestamp": "2026-03-21T14:30:00+00:00",
+    "duration_ms": 2000,
+    "roi_polygon": [[0,0],[1920,0],[1920,1080],[0,1080]]
   },
-  "tracks": [{
-    "track_id": 1,
-    "exposure": {"start_ms": 0, "end_ms": 3033, "exposure_ms": 3033},
-    "look_times": [{"start_ms": 1000, "end_ms": 3000, "duration_ms": 2000}],
-    "total_look_duration_ms": 2000,
-    "age_group": "20-29",
-    "gender": "female"
-  }]
+  "tracks": [
+    {
+      "track_id": 1,
+      "exposure": {"start_ms": 0, "end_ms": 3033},
+      "look_times": [
+        {"start_ms": 200, "end_ms": 800, "in_roi": false},
+        {"start_ms": 1500, "end_ms": 3000, "in_roi": true}
+      ],
+      "total_look_duration_ms": 1100,
+      "age_group": "20-29",
+      "gender": "female"
+    }
+  ]
 }
 '''

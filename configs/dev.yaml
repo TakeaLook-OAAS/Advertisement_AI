@@ -1,4 +1,5 @@
 # Dev overrides
+device_id: "cam_01"
 source: "data/samples/test5.mp4"
 
 display:
@@ -58,10 +59,4 @@ logic:
 output:
   json_dir: "data/output/segments/"
   ad_cycle:
-    ads:
-      - name: "brand_A"
-        duration_s: 2
-      - name: "brand_B"
-        duration_s: 3
-      - name: "brand_C"
-        duration_s: 1
+    durations_s: [2, 3, 1]

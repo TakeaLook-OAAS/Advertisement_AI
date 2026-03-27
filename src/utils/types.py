@@ -185,9 +185,10 @@ class LookResult:
 
 @dataclass
 class LookInterval:
-    """시선 구간 1개. 보기 시작~끝."""
+    """시선 구간 1개. 보기 시작~끝 + 해당 시점의 in_roi 상태."""
     start_ms: int
     end_ms: int
+    in_roi: bool = False
 
 @dataclass
 class PersonState:
@@ -220,7 +221,6 @@ class AdSegmentInfo:
     ad_cycle.py에서 사용하는 광고 세그먼트 정보
     """
     segment_index: int      # 0, 1, 2, ... (계속 증가)
-    ad_name: str            # "brand_A"
     cycle_index: int        # ads 리스트 내 인덱스 (순환)
     start_ms: int           # 이 세그먼트의 상대 시작 시간
     end_ms: int             # 이 세그먼트의 상대 종료 시간

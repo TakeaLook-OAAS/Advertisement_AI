@@ -19,6 +19,8 @@ from src.vision.draw import draw_tracks, draw_crop_bbox, draw_fps, draw_headpose
 def run_loop(cfg: Dict[str, Any], source: Union[int, str], orch) -> None:
     vs = VideoSource(source)
     status = StatusTracker()
+    status.set_device_id(cfg.get("device_id", ""))
+    status.set_roi_polygon(cfg.get("logic", {}).get("roi", {}).get("polygon", []))
 
     # ── display ──────────────────────────────────────────────────
     disp_cfg = cfg.get("display", {})
@@ -44,9 +46,10 @@ def run_loop(cfg: Dict[str, Any], source: Union[int, str], orch) -> None:
     ad_cycle_cfg = out_cfg.get("ad_cycle", {})
     json_dir = out_cfg.get("json_dir", "data/output/segments/")
 
-    scheduler = AdCycleScheduler(ad_cycle_cfg["ads"])
+    durations_s = ad_cycle_cfg["durations_s"]
+    scheduler = AdCycleScheduler(durations_s)
     os.makedirs(json_dir, exist_ok=True)
-    logger.info(f"Ad cycle: {len(ad_cycle_cfg['ads'])} ads, json_dir={json_dir}")
+    logger.info(f"Ad cycle: {len(durations_s)} segments, json_dir={json_dir}")
 
     writer = None
     if output_video:
@@ -81,7 +84,7 @@ def run_loop(cfg: Dict[str, Any], source: Union[int, str], orch) -> None:
                 segment_data = status.flush_segment(completed)
                 seg_path = os.path.join(
                     json_dir,
-                    f"segment_{completed.segment_index:03d}_{completed.ad_name}.json",
+                    f"segment_{completed.segment_index:03d}.json",
                 )
                 status.save_segment_json(seg_path, segment_data)
                 logger.info(f"Ad segment exported: {seg_path}")
@@ -136,7 +139,7 @@ def run_loop(cfg: Dict[str, Any], source: Union[int, str], orch) -> None:
         segment_data = status.flush_segment(final)
         seg_path = os.path.join(
             json_dir,
-            f"segment_{final.segment_index:03d}_{final.ad_name}.json",
+            f"segment_{final.segment_index:03d}.json",
         )
         status.save_segment_json(seg_path, segment_data)
         logger.info(f"Final ad segment exported: {seg_path}")
