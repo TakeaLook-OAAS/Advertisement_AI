@@ -17,13 +17,13 @@ from src.utils.types import (
 )
 
 
-class StatusTracker:
+class Test_StatusTracker:
     """
     매 프레임 tracks를 받아서 track_id별 상태를 추적한다.
 
     최종 목표:
     - exposure: 영상에 들어왔다가 나간 시간
-    - look_times: 본 시간 구간들 (각 구간에 in_roi 포함)
+    - look_times: 본 시간 구간들
     - age_group
     - gender
     """
@@ -32,11 +32,7 @@ class StatusTracker:
         self._states: Dict[int, PersonState] = {}
         self._frame_interval_ms: int = 33  # 기본값(약 30fps)
         self._segment_start_ms: int = 0    # 현재 세그먼트의 시작 시간
-        self._roi_polygon: List[List[int]] = []  # ROI 폴리곤 좌표
         self._device_id: str = ""          # 카메라 식별자
-
-    def set_roi_polygon(self, polygon: List[List[int]]) -> None:
-        self._roi_polygon = polygon
 
     def set_device_id(self, device_id: str) -> None:
         self._device_id = device_id
@@ -125,7 +121,7 @@ class StatusTracker:
                         start_ms=state.current_look_start_ms,
                         end_ms=end_ms,
                         start_center=last_center,
-                        end_center=last_center,
+                        end_center=last_center,  # 사라진 시점이라 마지막 known center 사용
                     )
                 )
                 state.current_look_start_ms = None
@@ -283,19 +279,30 @@ class StatusTracker:
     "index": 0,
     "cycle_index": 0,
     "timestamp": "2026-03-21T14:30:00+00:00",
-    "duration_ms": 2000
+    "duration_ms": 5000
   },
   "tracks": [
     {
       "track_id": 1,
-      "exposure": {"start_ms": 0, "end_ms": 3033},
+      "exposure": {"start_ms": 0, "end_ms": 5000},
       "look_times": [
         {"start_ms": 200, "end_ms": 800, "start_center": [500, 300], "end_center": [520, 310]},
         {"start_ms": 1500, "end_ms": 3000, "start_center": [480, 290], "end_center": [510, 305]}
       ],
-      "total_look_duration_ms": 1100,
+      "total_look_duration_ms": 2100,
       "age_group": "20-29",
       "gender": "female"
+    },
+    {
+      "track_id": 2,
+      "exposure": {"start_ms": 1000, "end_ms": 4000},
+      "look_times": [
+        {"start_ms": 1200, "end_ms": 1800, "start_center": [620, 410], "end_center": [600, 400]},
+        {"start_ms": 2500, "end_ms": 3500, "start_center": [580, 390], "end_center": [590, 380]}
+      ],
+      "total_look_duration_ms": 1600,
+      "age_group": "30-39",
+      "gender": "male"
     }
   ]
 }
