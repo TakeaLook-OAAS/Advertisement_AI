@@ -50,9 +50,6 @@ models:
     use_persons: true
 
 logic:
-  roi:
-    #polygon: [[0,0],[3840,0],[3840,2160],[0,2160]]
-    polygon: [[0,0],[1920,0],[1920,1080],[0,1080]]
   attention:
     threshold_deg: 30.0
 
