@@ -11,6 +11,7 @@ import cv2
 from loguru import logger
 
 from src.io.video_source import VideoSource
+from src.io.api_sender import send_segment
 from src.logic.ad_cycle import AdCycleScheduler
 from src.logic.status import StatusTracker
 from src.vision.draw import draw_tracks, draw_crop_bbox, draw_fps, draw_headpose, draw_gaze, draw_look, draw_gender_age
@@ -38,10 +39,15 @@ def run_loop(cfg: Dict[str, Any], source: Union[int, str], orch) -> None:
     output_video = bool(disp_cfg.get("output_video", True))
     output_path = disp_cfg.get("output_video_path", "data/output/output.mp4")
     
+    # ── 백엔드 전송 설정 ──────────────────────────────────────────
+    backend_url: str | None = cfg.get("backend", {}).get("url")
+
     # ── 광고 사이클 설정 (항상 활성화) ──────────────────────────────
     ad_cycle_cfg = out_cfg.get("ad_cycle", {})
     json_dir = out_cfg.get("json_dir", "data/output/segments/")
-
+    
+    device_id = cfg.get("device_id")
+    status.set_device_id(device_id)
     durations_s = ad_cycle_cfg["durations_s"]
     scheduler = AdCycleScheduler(durations_s)
     os.makedirs(json_dir, exist_ok=True)
@@ -84,6 +90,8 @@ def run_loop(cfg: Dict[str, Any], source: Union[int, str], orch) -> None:
                 )
                 status.save_segment_json(seg_path, segment_data)
                 logger.info(f"Ad segment exported: {seg_path}")
+                if backend_url:
+                    send_segment(segment_data, backend_url)
 
             ########################## 60프레임마다 로그 출력
             # 필요하면 디버그 로그   
@@ -135,6 +143,8 @@ def run_loop(cfg: Dict[str, Any], source: Union[int, str], orch) -> None:
         )
         status.save_segment_json(seg_path, segment_data)
         logger.info(f"Final ad segment exported: {seg_path}")
+        if backend_url:
+            send_segment(segment_data, backend_url)
 
         if writer is not None:
             writer.release()
