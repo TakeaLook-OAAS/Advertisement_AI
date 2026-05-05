@@ -1,6 +1,6 @@
 # Dev overrides
 device_id: "cam_01"
-source: "data/samples/test5.mp4"
+source: "data/samples/test3.mp4"
 
 display:
   output_video: false
@@ -48,6 +48,11 @@ models:
     min_face_size: 20
     min_person_size: 40
     use_persons: true
+
+pipeline:
+  frame_skip: 5                
+# N프레임마다 1번 처리 (1=매 프레임, 10=10프레임마다, 30=30프레임마다)
+# 테스트 목적이면 5~10, 실제 분석 결과가 중요하면 1~3을 권장
 
 logic:
   roi:

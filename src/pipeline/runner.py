@@ -42,6 +42,10 @@ def run_loop(cfg: Dict[str, Any], source: Union[int, str], orch) -> None:
     output_video = bool(disp_cfg.get("output_video", True))
     output_path = disp_cfg.get("output_video_path", "data/output/output.mp4")
     
+    # ── 프레임 스킵 설정 ──────────────────────────────────────────
+    frame_skip = int(cfg.get("pipeline", {}).get("frame_skip", 1))
+    logger.info(f"Frame skip: every {frame_skip} frame(s)")
+
     # ── 광고 사이클 설정 (항상 활성화) ──────────────────────────────
     ad_cycle_cfg = out_cfg.get("ad_cycle", {})
     json_dir = out_cfg.get("json_dir", "data/output/segments/")
@@ -71,6 +75,21 @@ def run_loop(cfg: Dict[str, Any], source: Union[int, str], orch) -> None:
                 logger.info("End of stream.")
                 break
 
+            if meta.frame_idx % frame_skip != 0:
+                # 광고 경계 체크만 수행 (처리 스킵)
+                while True:
+                    completed = scheduler.check(meta.ts_ms)
+                    if completed is None:
+                        break
+                    segment_data = status.flush_segment(completed)
+                    seg_path = os.path.join(
+                        json_dir,
+                        f"segment_{completed.segment_index:03d}.json",
+                    )
+                    status.save_segment_json(seg_path, segment_data)
+                    logger.info(f"Ad segment exported: {seg_path}")
+                continue
+
             out = orch.process(frame)
 
             # 상태 추적 업데이트
@@ -89,17 +108,22 @@ def run_loop(cfg: Dict[str, Any], source: Union[int, str], orch) -> None:
                 status.save_segment_json(seg_path, segment_data)
                 logger.info(f"Ad segment exported: {seg_path}")
 
-            ########################## 60프레임마다 로그 출력
-            # 필요하면 디버그 로그   
             if meta.frame_idx % 60 == 0:
+                looking = sum(1 for t in out.tracks if t.look_result and t.look_result.is_looking)
                 logger.info(
-                    f"\n"
-                    f"frame={meta.frame_idx}\n"
-                    f"ts_ms={meta.ts_ms}\n"
-                    f"dets={out.dets}\n"
-                    f"tracks={out.tracks}"
+                    f"frame={meta.frame_idx} | ts={meta.ts_ms}ms | "
+                    f"dets={len(out.dets)} | tracks={len(out.tracks)} | looking={looking}"
                 )
-            ########################## 나중에 지우셔   
+            # ########################## 60프레임마다 로그 출력
+            # if meta.frame_idx % 60 == 0:
+            #     logger.info(
+            #         f"\n"
+            #         f"frame={meta.frame_idx}\n"
+            #         f"ts_ms={meta.ts_ms}\n"
+            #         f"dets={out.dets}\n"
+            #         f"tracks={out.tracks}"
+            #     )
+            # ########################## 나중에 지우셔
 
             # FPS 계산
             now = time.time()
