@@ -11,16 +11,15 @@ import cv2
 from loguru import logger
 
 from src.io.video_source import VideoSource
+from src.io.api_sender import send_segment
 from src.logic.ad_cycle import AdCycleScheduler
 from src.logic.status import StatusTracker
-from src.vision.draw import draw_tracks, draw_crop_bbox, draw_fps, draw_headpose, draw_gaze, draw_roi, draw_look, draw_gender_age
+from src.vision.draw import draw_tracks, draw_crop_bbox, draw_fps, draw_headpose, draw_gaze, draw_look, draw_gender_age
 
 
 def run_loop(cfg: Dict[str, Any], source: Union[int, str], orch) -> None:
     vs = VideoSource(source)
     status = StatusTracker()
-    roi_polygon = cfg.get("logic", {}).get("roi", {}).get("polygon", [])
-    status.set_roi_polygon(roi_polygon)
 
     # ── display ──────────────────────────────────────────────────
     disp_cfg = cfg.get("display", {})
@@ -31,10 +30,8 @@ def run_loop(cfg: Dict[str, Any], source: Union[int, str], orch) -> None:
     show_fps = bool(disp_cfg.get("draw_fps", True))                 # FPS 표시
     show_headpose = bool(disp_cfg.get("draw_headpose", True))       # headpose + headpose vector표시
     show_gaze = bool(disp_cfg.get("draw_gaze", True))               # gaze + gaze vector 표시
-    show_roi = bool(disp_cfg.get("draw_roi", True))                 # ROI 폴리곤 + in_roi 표시
     show_look = bool(disp_cfg.get("draw_look", True))               # LookResult 표시
     show_gender_age = bool(disp_cfg.get("draw_gender_age", True))   # gender, age_group 표시
-    roi_pts = cfg.get("logic", {}).get("roi", {}).get("polygon", [])
 
     # ── 비디오 출력 설정(output) ──────────────────────────────────────────
     out_cfg = cfg.get("output", {})
@@ -45,11 +42,15 @@ def run_loop(cfg: Dict[str, Any], source: Union[int, str], orch) -> None:
     # ── 프레임 스킵 설정 ──────────────────────────────────────────
     frame_skip = int(cfg.get("pipeline", {}).get("frame_skip", 1))
     logger.info(f"Frame skip: every {frame_skip} frame(s)")
+    # ── 백엔드 전송 설정 ──────────────────────────────────────────
+    backend_url: str | None = cfg.get("backend", {}).get("url")
 
     # ── 광고 사이클 설정 (항상 활성화) ──────────────────────────────
     ad_cycle_cfg = out_cfg.get("ad_cycle", {})
     json_dir = out_cfg.get("json_dir", "data/output/segments/")
-
+    
+    device_id = cfg.get("device_id")
+    status.set_device_id(device_id)
     durations_s = ad_cycle_cfg["durations_s"]
     scheduler = AdCycleScheduler(durations_s)
     os.makedirs(json_dir, exist_ok=True)
@@ -107,6 +108,8 @@ def run_loop(cfg: Dict[str, Any], source: Union[int, str], orch) -> None:
                 )
                 status.save_segment_json(seg_path, segment_data)
                 logger.info(f"Ad segment exported: {seg_path}")
+                if backend_url:
+                    send_segment(segment_data, backend_url)
 
             if meta.frame_idx % 60 == 0:
                 looking = sum(1 for t in out.tracks if t.look_result and t.look_result.is_looking)
@@ -144,8 +147,6 @@ def run_loop(cfg: Dict[str, Any], source: Union[int, str], orch) -> None:
                     draw_headpose(frame, out.tracks, font_scale, thickness)
                 if show_gaze:           # gaze + gaze vector
                     draw_gaze(frame, out.tracks, font_scale, thickness)
-                if show_roi:            # ROI 폴리곤 + in_roi
-                    draw_roi(frame, out.tracks, roi_pts, font_scale, thickness)
                 if show_look:           # LookResult
                     draw_look(frame, out.tracks, font_scale, thickness)
                 if show_gender_age:     # gender, age_group
@@ -165,6 +166,8 @@ def run_loop(cfg: Dict[str, Any], source: Union[int, str], orch) -> None:
         )
         status.save_segment_json(seg_path, segment_data)
         logger.info(f"Final ad segment exported: {seg_path}")
+        if backend_url:
+            send_segment(segment_data, backend_url)
 
         if writer is not None:
             writer.release()

@@ -185,10 +185,11 @@ class LookResult:
 
 @dataclass
 class LookInterval:
-    """시선 구간 1개. 보기 시작~끝 + 해당 시점의 in_roi 상태."""
+    """시선 구간 1개. 보기 시작~끝 + 해당 시점의 bbox center."""
     start_ms: int
     end_ms: int
-    in_roi: bool = False
+    start_center: Tuple[int, int] = (0, 0)
+    end_center: Tuple[int, int] = (0, 0)
 
 @dataclass
 class PersonState:

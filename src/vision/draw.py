@@ -190,40 +190,6 @@ def draw_gaze(
             )
 
 
-# ROI 폴리곤 + in_roi 텍스트 표시
-def draw_roi(
-    frame: np.ndarray,
-    tracks: List[Track],
-    polygon: List[List[int]],
-    font_scale: float = 0.45,
-    thickness: int = 1,
-) -> None:
-    """ROI 폴리곤을 그리고, 각 Track bbox 위에 ROI 상태를 표시한다."""
-    # ROI 폴리곤 그리기
-    if polygon:
-        pts = np.array(polygon, dtype=np.int32)
-        cv2.polylines(
-            frame,
-            [pts], 
-            isClosed=True, 
-            color=(255, 255, 255), 
-            thickness=2, 
-            lineType=cv2.LINE_AA)
-
-    for t in tracks:
-        color = _id_color(t.track_id)
-        cv2.putText(
-            img=frame,
-            text=f"ROI:{t.roi.in_roi if t.roi else False} dwell:{t.roi.dwell_frames if t.roi else 0}",
-            org=(t.bbox.x2, t.bbox.y1 - 54),     # gaze 텍스트(-36) 위
-            fontFace=cv2.FONT_HERSHEY_SIMPLEX,
-            fontScale=font_scale,
-            color=color,
-            thickness=thickness,
-            lineType=cv2.LINE_AA,
-        )
-
-
 # LookResult 텍스트 표시
 def draw_look(
     frame: np.ndarray,

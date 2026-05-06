@@ -1,10 +1,11 @@
 # Dev overrides
-device_id: "cam_01"
-source: "data/samples/test3.mp4"
+#device_id: "cam_01"
+device_id: "8c95c463-b597-4ae7-81e4-014398f80ad7"
+source: "data/samples/test7.mp4"
 
 display:
   output_video: false
-  output_video_path: "data/output/output_test5_official_bytetrack.mp4"
+  output_video_path: "data/output/output_test7_official_bytetrack.mp4"
   font_scale: 0.7
   thickness: 2
   draw_bbox: true
@@ -55,13 +56,14 @@ pipeline:
 # 테스트 목적이면 5~10, 실제 분석 결과가 중요하면 1~3을 권장
 
 logic:
-  roi:
-    #polygon: [[0,0],[3840,0],[3840,2160],[0,2160]]
-    polygon: [[0,0],[1920,0],[1920,1080],[0,1080]]
   attention:
     threshold_deg: 30.0
 
 output:
   json_dir: "data/output/segments/"
   ad_cycle:
-    durations_s: [2, 3, 1]
+    durations_s: [30, 25, 35]
+
+backend:
+  #url: "http://localhost:8000/events/"
+  url: "http://back_dev:8000/events/"
