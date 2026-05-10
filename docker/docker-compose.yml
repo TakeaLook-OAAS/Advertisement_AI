@@ -30,6 +30,29 @@ services:
     networks:
       - oaas-net
 
+  ai-gpu-dev:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.gpu
+    container_name: ai_gpu_dev
+    volumes:
+      - ..:/app
+    working_dir: /app
+    environment:
+      - PYTHONUNBUFFERED=1
+      - MIVOLO_REPO_ROOT=/tmp/MiVOLO_gpu
+    entrypoint: [ "/bin/bash", "/app/docker/entrypoint_gpu.sh" ]
+    command: sleep infinity
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [ gpu ]
+    networks:
+      - oaas-net
+
 networks:
   oaas-net:
     external: true

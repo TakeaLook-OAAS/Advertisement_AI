@@ -37,7 +37,7 @@ class MiVOLOAttr:
             "model",
             "weights/age_gender/model_imdb_cross_person_4.22_99.46.pth.tar",
         )
-        self.repo_root = cfg.get("repo_root", "/app/MiVOLO")
+        self.repo_root = cfg.get("repo_root", os.getenv("MIVOLO_REPO_ROOT", "MiVOLO"))
         self.min_face_size = int(cfg.get("min_face_size", 20))
         self.min_person_size = int(cfg.get("min_person_size", 40))
         self.use_persons = bool(cfg.get("use_persons", True))
