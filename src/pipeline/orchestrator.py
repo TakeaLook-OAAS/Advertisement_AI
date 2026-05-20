@@ -39,13 +39,14 @@ class Orchestrator:
     def __init__(self, cfg: Dict[str, Any]):
         self.cfg = cfg
         # models
-        self.detector = YoloDetector(cfg.get("models", {}).get("yolo", {}))
-        self.tracker = OfficialByteTrackAdapter(cfg.get("models", {}).get("tracker", {}))
         self.face = FaceDetector(cfg.get("models", {}).get("face", {}))
-        self.mivolo = MiVOLOAttr(cfg.get("models", {}).get("mivolo", {}))
-        self.headpose = HeadPoseEstimator(cfg.get("models", {}).get("headpose", {}))
         self.eye = EyeDetector(cfg.get("models", {}).get("eye", {}))
         self.gaze = GazeDetector(cfg.get("models", {}).get("gaze", {}))
+
+        self.detector = YoloDetector(cfg.get("models", {}).get("yolo", {}))
+        self.tracker = OfficialByteTrackAdapter(cfg.get("models", {}).get("tracker", {}))
+        self.mivolo = MiVOLOAttr(cfg.get("models", {}).get("mivolo", {}))
+        self.headpose = HeadPoseEstimator(cfg.get("models", {}).get("headpose", {}))
 
         # logic
         roi_pts = cfg.get("logic", {}).get("roi", {}).get("polygon", [])

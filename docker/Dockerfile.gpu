@@ -1,0 +1,37 @@
+FROM nvidia/cuda:12.1.1-cudnn8-devel-ubuntu22.04
+
+WORKDIR /app
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    python3.11 python3.11-dev python3-pip \
+    ffmpeg libglib2.0-0 libgl1 ca-certificates g++ \
+    && ln -sf python3.11 /usr/bin/python \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN python -m pip install --upgrade pip
+
+COPY requirements.txt /app/requirements.txt
+
+RUN pip install --no-cache-dir \
+    torch==2.1.0+cu121 torchvision==0.16.0+cu121 \
+    --index-url https://download.pytorch.org/whl/cu121
+
+RUN pip install --no-cache-dir timm==1.0.3
+
+RUN grep -Ev "^(--index-url|--extra-index-url|torch|torchvision|timm)" /app/requirements.txt \
+    | pip install --no-cache-dir -r /dev/stdin
+
+COPY . /app
+
+# MiVOLO 패치 (timm 1.0.3 호환)
+RUN sed -i 's/from timm.models._helpers import load_state_dict, remap_checkpoint/from timm.models._helpers import load_state_dict, remap_state_dict as remap_checkpoint/' MiVOLO/mivolo/model/create_timm_model.py
+
+RUN sed -i 's/from timm.models._pretrained import PretrainedCfg, split_model_name_tag/from timm.models._pretrained import PretrainedCfg\nfrom timm.models import split_model_name_tag/' MiVOLO/mivolo/model/create_timm_model.py
+
+COPY docker/patch_mivolo.py /tmp/patch_mivolo.py
+RUN python /tmp/patch_mivolo.py
+
+RUN sed -i 's/block_dpr = drop_path_rate \*/block_dpr = float(drop_path_rate) */' \
+    /usr/local/lib/python3.11/dist-packages/timm/models/volo.py
+
+CMD ["python", "-m", "src.main", "--config", "configs/dev.yaml", "--no-window"]

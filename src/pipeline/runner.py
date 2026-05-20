@@ -63,6 +63,7 @@ def run_loop(cfg: Dict[str, Any], source: Union[int, str], orch) -> None:
         writer = cv2.VideoWriter(output_path, fourcc, vs.fps, (vs.width, vs.height))
         logger.info(f"Video output enabled: {output_path}")
 
+    start_time = time.time()  # 전체 처리 시간 측정용
     last = time.time()  # FPS 계산용 타이머
     fps = 0.0           # 현재 FPS
 
@@ -112,20 +113,17 @@ def run_loop(cfg: Dict[str, Any], source: Union[int, str], orch) -> None:
                     send_segment(segment_data, backend_url)
 
             if meta.frame_idx % 60 == 0:
-                looking = sum(1 for t in out.tracks if t.look_result and t.look_result.is_looking)
-                logger.info(
-                    f"frame={meta.frame_idx} | ts={meta.ts_ms}ms | "
-                    f"dets={len(out.dets)} | tracks={len(out.tracks)} | looking={looking}"
-                )
+            #    looking = sum(1 for t in out.tracks if t.look_result and t.look_result.is_looking)
+            #    logger.info(
+            #        f"frame={meta.frame_idx} | ts={meta.ts_ms}ms | "
+            #        f"dets={len(out.dets)} | tracks={len(out.tracks)} | looking={looking}"
+            #    )
             # ########################## 60프레임마다 로그 출력
-            # if meta.frame_idx % 60 == 0:
-            #     logger.info(
-            #         f"\n"
-            #         f"frame={meta.frame_idx}\n"
-            #         f"ts_ms={meta.ts_ms}\n"
-            #         f"dets={out.dets}\n"
-            #         f"tracks={out.tracks}"
-            #     )
+                logger.info(
+                    f"frame={meta.frame_idx} ts_ms={meta.ts_ms}"
+                    #f"dets={out.dets}\n"
+                    #f"tracks={out.tracks}"
+                )
             # ########################## 나중에 지우셔
 
             # FPS 계산
@@ -174,3 +172,6 @@ def run_loop(cfg: Dict[str, Any], source: Union[int, str], orch) -> None:
             logger.info(f"Output video saved: {output_path}")
 
         vs.release()    # 동영상 파일 닫기
+
+        elapsed = time.time() - start_time
+        logger.info(f"총 처리 시간: {elapsed:.1f}초")

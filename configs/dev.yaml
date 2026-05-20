@@ -19,7 +19,8 @@ display:
 
 models:
   yolo:
-    device: "cpu"
+    device: "cuda"
+    #device: "cpu"
     model: "weights/yolo/yolov8n.pt"      # nano model (~6MB, auto-download)
     conf: 0.5                 # confidence threshold
     classes: [0]              # 0=person in COCO
@@ -32,7 +33,8 @@ models:
     conf_thresh: 0.5          # confidence threshold
     min_face_size: 30         # 최소 얼굴 크기 (pixel). 이보다 작으면 bbox 그대로 반환
   headpose:
-    device: "cpu"             # cpu / cuda
+    device: "cuda"
+    #device: "cpu"             # cpu / cuda
     weights: "weights/headpose/6DRepNet_300W_LP_AFLW2000.pth"  # 가중치 경로
     min_face_size: 30         # 최소 얼굴 크기 (pixel). 이보다 작으면 실패 처리
   eye:
@@ -43,15 +45,15 @@ models:
     device: "CPU"
     weights: "weights/gaze/gaze-estimation-adas-0002.xml"
   mivolo:
-    device: "cpu"
+    device: "cuda"
+    #device: "cpu"
     model: "weights/age_gender/model_imdb_cross_person_4.22_99.46.pth"
-    repo_root: "MiVOLO"
     min_face_size: 20
     min_person_size: 40
     use_persons: true
 
 pipeline:
-  frame_skip: 5                
+  frame_skip: 10
 # N프레임마다 1번 처리 (1=매 프레임, 10=10프레임마다, 30=30프레임마다)
 # 테스트 목적이면 5~10, 실제 분석 결과가 중요하면 1~3을 권장
 
