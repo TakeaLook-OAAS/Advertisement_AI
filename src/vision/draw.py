@@ -109,8 +109,10 @@ def draw_headpose(
         hp = track.headpose
         if hp is None:
             continue
+        if track.crop_bbox is None:
+            continue
         bbox = track.bbox
-        crop = track.crop_bbox if track.crop_bbox is not None else track.bbox
+        crop = track.crop_bbox
         color = _id_color(track.track_id)
 
         text = f"Y:{hp.yaw:+.0f} P:{hp.pitch:+.0f} R:{hp.roll:+.0f}"
@@ -153,6 +155,8 @@ def draw_gaze(
     for track in tracks:
         gaze = track.gaze
         if gaze is None:
+            continue
+        if track.crop_bbox is None:
             continue
         bbox = track.bbox
         color = _id_color(track.track_id)

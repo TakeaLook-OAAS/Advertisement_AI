@@ -1,11 +1,11 @@
 # Dev overrides
 #device_id: "cam_01"
-device_id: "8c95c463-b597-4ae7-81e4-014398f80ad7"
-source: "data/samples/test7.mp4"
+device_id: "dddddddd-0000-0000-0000-000000000001"
+source: "data/samples/test14.mp4"
 
 display:
-  output_video: false
-  output_video_path: "data/output/output_test7_official_bytetrack.mp4"
+  output_video: true
+  output_video_path: "data/output/output_test14.mp4"
   font_scale: 0.7
   thickness: 2
   draw_bbox: true
@@ -27,6 +27,8 @@ models:
   tracker:
     iou_threshold: 0.3
     max_lost: 30              # 이 프레임 수만큼 미매칭이면 track 삭제
+    img_w: 3840               # 입력 영상 해상도 (ByteTrack 내부 좌표 스케일링용)
+    img_h: 2160
   face:
     device: "CPU"
     weights: "weights/face_detection/face-detection-adas-0001.xml"
@@ -53,7 +55,7 @@ models:
     use_persons: true
 
 pipeline:
-  frame_skip: 10
+  frame_skip: 1
 # N프레임마다 1번 처리 (1=매 프레임, 10=10프레임마다, 30=30프레임마다)
 # 테스트 목적이면 5~10, 실제 분석 결과가 중요하면 1~3을 권장
 
@@ -64,7 +66,7 @@ logic:
 output:
   json_dir: "data/output/segments/"
   ad_cycle:
-    durations_s: [30, 25, 35]
+    durations_s: [40]
 
 backend:
   #url: "http://localhost:8000/events/"
