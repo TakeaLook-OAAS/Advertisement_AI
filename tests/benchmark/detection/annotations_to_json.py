@@ -48,8 +48,10 @@ def parse_txt(txt_path: str, img_w: int, img_h: int, classes: Dict[int, str]) ->
             class_name = classes.get(class_id, "")
 
             if class_name == "person":
+                bbox["id"] = len(persons)
                 persons.append(bbox)
             elif class_name == "face":
+                bbox["id"] = len(faces)
                 faces.append(bbox)
 
     return {"persons": persons, "faces": faces}

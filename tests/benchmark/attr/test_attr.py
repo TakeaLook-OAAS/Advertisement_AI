@@ -3,7 +3,7 @@
 두 가중치를 같은 테스트 데이터로 평가하여 Accuracy, F1-score를 비교한다.
 
 사용법:
-    python -m tests.benchmark.test_attr
+    python -m tests.benchmark.attr.test_attr
 
 데이터 구조:
     data/benchmark/attr/

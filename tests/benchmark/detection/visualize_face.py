@@ -23,7 +23,7 @@ from loguru import logger
 
 from src.utils.types import BBoxXYXY, Track
 
-from tests.benchmark.test_detection import (
+from tests.benchmark.detection.test_detection import (
     IMAGES_DIR,
     IOU_THRESH,
     FACE_WEIGHTS_A,
@@ -115,18 +115,20 @@ def main() -> None:
         n_fp += len(fp_idx)
         n_fn += len(fn_idx)
 
-        # person (맥락)
-        for pb in gt_persons:
-            draw_box(frame, parse_bbox(pb), GRAY, thickness=1)
+        # person (맥락 + ID)
+        for i, pb in enumerate(gt_persons):
+            pid = pb.get("id", i)
+            draw_box(frame, parse_bbox(pb), GRAY, label=f"P{pid}", thickness=1)
 
-        # 정답 face: 매칭되면 IoU 표기, FN이면 'MISS'
+        # 정답 face: ID + 매칭되면 IoU 표기, FN이면 'MISS'
         fn_set = set(fn_idx)
         gi_to_iou = {gi: iou for (_, gi, iou) in matched}
         for gi, gt in enumerate(gt_faces):
+            fid = item.get("faces", [])[gi].get("id", gi)
             if gi in fn_set:
-                draw_box(frame, gt, GREEN, label="GT-MISS")
+                draw_box(frame, gt, GREEN, label=f"F{fid}-MISS")
             else:
-                draw_box(frame, gt, GREEN, label=f"IoU {gi_to_iou[gi]:.2f}")
+                draw_box(frame, gt, GREEN, label=f"F{fid} IoU {gi_to_iou[gi]:.2f}")
 
         # 예측 face: FP면 'FP'로 표시
         fp_set = set(fp_idx)
