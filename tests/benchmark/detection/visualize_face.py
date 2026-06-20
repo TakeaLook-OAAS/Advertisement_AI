@@ -26,7 +26,7 @@ from src.utils.types import BBoxXYXY, Track
 from tests.benchmark.detection.test_detection import (
     IMAGES_DIR,
     IOU_THRESH,
-    FACE_WEIGHTS_A,
+    FACE_WEIGHTS,
     compute_iou,
     load_labels,
     parse_bbox,
@@ -94,7 +94,7 @@ def main() -> None:
     labels = load_labels()
     logger.info(f"시각화 대상 이미지 수: {len(labels)}")
 
-    cfg = {"weights": FACE_WEIGHTS_A, "device": "CPU", "conf_thresh": 0.5}
+    cfg = {"weights": FACE_WEIGHTS, "device": "CPU", "conf_thresh": 0.5}
     detector = FaceDetector(cfg)
 
     n_tp, n_fp, n_fn = 0, 0, 0

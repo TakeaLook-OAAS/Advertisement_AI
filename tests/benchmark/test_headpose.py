@@ -1,6 +1,6 @@
 """
 Headpose 모델 벤치마크: 6DRepNet (yaw, pitch, roll)
-두 가중치를 같은 테스트 데이터로 평가하여 MAE(Mean Absolute Error)를 비교한다.
+정답 라벨과 현재 가중치를 비교하여 MAE(Mean Absolute Error)를 측정한다.
 
 사용법:
     python -m tests.benchmark.test_headpose
@@ -28,8 +28,7 @@ DATA_DIR = "data/benchmark/headpose"
 IMAGES_DIR = os.path.join(DATA_DIR, "images")
 LABELS_PATH = os.path.join(DATA_DIR, "labels.json")
 
-HEADPOSE_WEIGHTS_A = "weights/headpose/6DRepNet_300W_LP_AFLW2000.pth"
-HEADPOSE_WEIGHTS_B = "weights/headpose/6DRepNet_300W_LP_AFLW2000.pth"
+HEADPOSE_WEIGHTS = "weights/headpose/6DRepNet_300W_LP_AFLW2000.pth"
 
 
 # ── 메트릭 함수 ──────────────────────────────────────────────
@@ -113,20 +112,10 @@ def bench_headpose(
 
 # ── 결과 출력 ────────────────────────────────────────────────
 
-def print_comparison(
-    result_a: Tuple[float, float, float, float],
-    result_b: Tuple[float, float, float, float],
-) -> None:
+def print_result(result: Tuple[float, float, float, float]) -> None:
     print("\n=== Headpose MAE (degrees) ===")
-    print(f"           {'Yaw':>8}  {'Pitch':>8}  {'Roll':>8}  {'Mean':>8}")
-    print(
-        f"  Model A: {result_a[0]:8.2f}  {result_a[1]:8.2f}  "
-        f"{result_a[2]:8.2f}  {result_a[3]:8.2f}"
-    )
-    print(
-        f"  Model B: {result_b[0]:8.2f}  {result_b[1]:8.2f}  "
-        f"{result_b[2]:8.2f}  {result_b[3]:8.2f}"
-    )
+    print(f"  {'Yaw':>8}  {'Pitch':>8}  {'Roll':>8}  {'Mean':>8}")
+    print(f"  {result[0]:8.2f}  {result[1]:8.2f}  {result[2]:8.2f}  {result[3]:8.2f}")
 
 
 # ── 메인 ─────────────────────────────────────────────────────
@@ -140,12 +129,8 @@ def main() -> None:
     labels = load_labels()
     logger.info(f"테스트 이미지 수: {len(labels)}")
 
-    logger.info("Headpose Model A 평가 중...")
-    result_a = bench_headpose(HEADPOSE_WEIGHTS_A, labels)
-    logger.info("Headpose Model B 평가 중...")
-    result_b = bench_headpose(HEADPOSE_WEIGHTS_B, labels)
-
-    print_comparison(result_a, result_b)
+    logger.info("Headpose 평가 중...")
+    print_result(bench_headpose(HEADPOSE_WEIGHTS, labels))
 
 
 if __name__ == "__main__":

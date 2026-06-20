@@ -1,6 +1,6 @@
 """
 속성 모델 벤치마크: MiVOLO (gender, age_group)
-두 가중치를 같은 테스트 데이터로 평가하여 Accuracy, F1-score를 비교한다.
+정답 라벨과 현재 가중치를 비교하여 Accuracy, F1-score를 측정한다.
 
 사용법:
     python -m tests.benchmark.attr.test_attr
@@ -29,8 +29,7 @@ DATA_DIR = "data/benchmark/attr"
 IMAGES_DIR = os.path.join(DATA_DIR, "images")
 LABELS_PATH = os.path.join(DATA_DIR, "labels.json")
 
-MIVOLO_WEIGHTS_A = "weights/age_gender/model_imdb_cross_person_4.22_99.46.pth"
-MIVOLO_WEIGHTS_B = "weights/age_gender/model_imdb_cross_person_4.22_99.46.pth"
+MIVOLO_WEIGHTS = "weights/age_gender/model_imdb_cross_person_4.22_99.46.pth"
 
 MIVOLO_CFG_BASE = {
     "device": "cpu",
@@ -134,17 +133,11 @@ def bench_mivolo(
 
 # ── 결과 출력 ────────────────────────────────────────────────
 
-def print_comparison(
-    result_a: Tuple[float, float, float, float],
-    result_b: Tuple[float, float, float, float],
-) -> None:
+def print_result(result: Tuple[float, float, float, float]) -> None:
     print("\n=== Gender ===")
-    print(f"  Model A: accuracy={result_a[0]:.4f}, f1={result_a[1]:.4f}")
-    print(f"  Model B: accuracy={result_b[0]:.4f}, f1={result_b[1]:.4f}")
-
+    print(f"  accuracy={result[0]:.4f}, f1={result[1]:.4f}")
     print("\n=== Age Group ===")
-    print(f"  Model A: accuracy={result_a[2]:.4f}, f1={result_a[3]:.4f}")
-    print(f"  Model B: accuracy={result_b[2]:.4f}, f1={result_b[3]:.4f}")
+    print(f"  accuracy={result[2]:.4f}, f1={result[3]:.4f}")
 
 
 # ── 메인 ─────────────────────────────────────────────────────
@@ -158,12 +151,8 @@ def main() -> None:
     labels = load_labels()
     logger.info(f"테스트 이미지 수: {len(labels)}")
 
-    logger.info("MiVOLO Model A 평가 중...")
-    result_a = bench_mivolo(MIVOLO_WEIGHTS_A, labels)
-    logger.info("MiVOLO Model B 평가 중...")
-    result_b = bench_mivolo(MIVOLO_WEIGHTS_B, labels)
-
-    print_comparison(result_a, result_b)
+    logger.info("MiVOLO 평가 중...")
+    print_result(bench_mivolo(MIVOLO_WEIGHTS, labels))
 
 
 if __name__ == "__main__":

@@ -1,6 +1,6 @@
 """
 검출 모델 벤치마크: YOLO(person bbox), FaceDetector(crop_bbox), EyeDetector(eye bbox)
-두 가중치를 같은 테스트 데이터로 평가하여 Precision/Recall/F1, IoU를 비교한다.
+정답 라벨과 현재 가중치를 비교하여 Precision/Recall/F1, IoU를 측정한다.
 
 사용법:
     python -m tests.benchmark.detection.test_detection
@@ -30,15 +30,9 @@ LABELS_PATH = os.path.join(DATA_DIR, "labels.json")
 
 IOU_THRESH = 0.5
 
-# 모델 A / B 가중치 경로 (사용 전 수정)
-YOLO_WEIGHTS_A = "weights/yolo/yolov8n.pt"
-YOLO_WEIGHTS_B = "weights/yolo/yolov8n.pt"
-
-FACE_WEIGHTS_A = "weights/face_detection/face-detection-adas-0001.xml"
-FACE_WEIGHTS_B = "weights/face_detection/face-detection-adas-0001.xml"
-
-EYE_WEIGHTS_A = "weights/eye_detection/facial-landmarks-35-adas-0002.xml"
-EYE_WEIGHTS_B = "weights/eye_detection/facial-landmarks-35-adas-0002.xml"
+YOLO_WEIGHTS = "weights/yolo/yolov8n.pt"
+FACE_WEIGHTS = "weights/face_detection/face-detection-adas-0001.xml"
+EYE_WEIGHTS  = "weights/eye_detection/facial-landmarks-35-adas-0002.xml"
 
 
 # ── 메트릭 함수 ──────────────────────────────────────────────
@@ -268,13 +262,11 @@ def bench_eye(weights: str, labels: List[Dict[str, Any]]) -> Result:
 
 # ── 결과 출력 ────────────────────────────────────────────────
 
-def print_comparison(title: str, result_a: Result, result_b: Result) -> None:
-    pa, ra, fa, ia = result_a
-    pb, rb, fb, ib = result_b
+def print_result(title: str, result: Result) -> None:
+    p, r, f, i = result
     print(f"\n=== {title} ===")
-    print(f"  {'':9}{'Precision':>10}{'Recall':>10}{'F1':>10}{'avg IoU':>10}")
-    print(f"  Model A: {pa:>9.4f}{ra:>10.4f}{fa:>10.4f}{ia:>10.4f}")
-    print(f"  Model B: {pb:>9.4f}{rb:>10.4f}{fb:>10.4f}{ib:>10.4f}")
+    print(f"  {'Precision':>10}{'Recall':>10}{'F1':>10}{'avg IoU':>10}")
+    print(f"  {p:>10.4f}{r:>10.4f}{f:>10.4f}{i:>10.4f}")
 
 
 # ── 메인 ─────────────────────────────────────────────────────
@@ -288,26 +280,14 @@ def main() -> None:
     labels = load_labels()
     logger.info(f"테스트 이미지 수: {len(labels)}")
 
-    # YOLO
-    logger.info("YOLO Model A 평가 중...")
-    yolo_a = bench_yolo(YOLO_WEIGHTS_A, labels)
-    logger.info("YOLO Model B 평가 중...")
-    yolo_b = bench_yolo(YOLO_WEIGHTS_B, labels)
-    print_comparison("YOLO Person Detection", yolo_a, yolo_b)
+    logger.info("YOLO 평가 중...")
+    print_result("YOLO Person Detection", bench_yolo(YOLO_WEIGHTS, labels))
 
-    # Face
-    logger.info("Face Model A 평가 중...")
-    face_a = bench_face(FACE_WEIGHTS_A, labels)
-    logger.info("Face Model B 평가 중...")
-    face_b = bench_face(FACE_WEIGHTS_B, labels)
-    print_comparison("Face Detection (조건부: GT person crop 입력)", face_a, face_b)
+    logger.info("Face 평가 중...")
+    print_result("Face Detection (head bbox 있는것만)", bench_face(FACE_WEIGHTS, labels))
 
-    # Eye
-    logger.info("Eye Model A 평가 중...")
-    eye_a = bench_eye(EYE_WEIGHTS_A, labels)
-    logger.info("Eye Model B 평가 중...")
-    eye_b = bench_eye(EYE_WEIGHTS_B, labels)
-    print_comparison("Eye Detection", eye_a, eye_b)
+    logger.info("Eye 평가 중...")
+    print_result("Eye Detection", bench_eye(EYE_WEIGHTS, labels))
 
 
 if __name__ == "__main__":
