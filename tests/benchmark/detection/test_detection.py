@@ -1,9 +1,9 @@
 """
 검출 모델 벤치마크: YOLO(person bbox), FaceDetector(crop_bbox), EyeDetector(eye bbox)
-두 가중치를 같은 테스트 데이터로 평가하여 IoU, mAP@0.5를 비교한다.
+두 가중치를 같은 테스트 데이터로 평가하여 Precision/Recall/F1, IoU를 비교한다.
 
 사용법:
-    python -m tests.benchmark.test_detection
+    python -m tests.benchmark.detection.test_detection
 
 데이터 구조:
     data/benchmark/detection/
@@ -28,9 +28,11 @@ DATA_DIR = "data/benchmark/detection"
 IMAGES_DIR = os.path.join(DATA_DIR, "images")
 LABELS_PATH = os.path.join(DATA_DIR, "labels.json")
 
+IOU_THRESH = 0.5
+
 # 모델 A / B 가중치 경로 (사용 전 수정)
 YOLO_WEIGHTS_A = "weights/yolo/yolov8n.pt"
-YOLO_WEIGHTS_B = "weights/yolo/yolov8s.pt"
+YOLO_WEIGHTS_B = "weights/yolo/yolov8n.pt"
 
 FACE_WEIGHTS_A = "weights/face_detection/face-detection-adas-0001.xml"
 FACE_WEIGHTS_B = "weights/face_detection/face-detection-adas-0001.xml"
@@ -61,19 +63,19 @@ def compute_iou(pred: BBoxXYXY, gt: BBoxXYXY) -> float:
 def match_and_score(
     preds: List[BBoxXYXY],
     gts: List[BBoxXYXY],
-    iou_thresh: float = 0.5,
-) -> Tuple[int, int, int, float]:
+    iou_thresh: float = IOU_THRESH,
+) -> Tuple[int, int, int, List[float]]:
     """
     예측 bbox와 정답 bbox를 greedy IoU 매칭한다.
 
-    Returns: (tp, fp, fn, avg_iou)
+    Returns: (tp, fp, fn, matched_ious)
         tp: IoU >= thresh인 매칭 수
-        fp: 매칭 안 된 예측 수
-        fn: 매칭 안 된 정답 수
-        avg_iou: 매칭된 쌍들의 평균 IoU
+        fp: 매칭 안 된 예측 수 (오검)
+        fn: 매칭 안 된 정답 수 (미검출)
+        matched_ious: 매칭된 쌍들의 IoU 리스트 (위치 정렬 품질 전용, 페널티 미포함)
     """
     matched_gt = set()
-    ious = []
+    matched_ious: List[float] = []
 
     for pred in preds:
         best_iou = 0.0
@@ -87,24 +89,30 @@ def match_and_score(
                 best_gi = gi
         if best_iou >= iou_thresh and best_gi >= 0:
             matched_gt.add(best_gi)
-            ious.append(best_iou)
+            matched_ious.append(best_iou)
 
-    tp = len(ious)
+    tp = len(matched_ious)
     fp = len(preds) - tp
     fn = len(gts) - tp
-    avg_iou = float(np.mean(ious)) if ious else 0.0
 
-    return tp, fp, fn, avg_iou
+    return tp, fp, fn, matched_ious
 
 
-def compute_map(all_tp: int, all_fp: int, all_fn: int) -> float:
-    """전체 이미지에 대한 mAP@0.5 (= precision 기준 간이 계산)."""
-    if all_tp + all_fp == 0:
-        return 0.0
-    precision = all_tp / (all_tp + all_fp)
-    recall = all_tp / (all_tp + all_fn) if (all_tp + all_fn) > 0 else 0.0
-    # 간이 AP: precision * recall (정밀한 AP 곡선은 아님)
-    return precision
+def compute_metrics(tp: int, fp: int, fn: int) -> Tuple[float, float, float]:
+    """전체 누적 TP/FP/FN으로 Precision, Recall, F1을 계산한다.
+
+    - Precision: 검출한 것 중 맞은 비율 → 과검출(FP)에 민감
+    - Recall:    정답 중 잡은 비율     → 미검출(FN)에 민감
+    - F1:        둘의 조화평균          → 과검출/미검출 둘 다 페널티
+    """
+    precision = tp / (tp + fp) if (tp + fp) > 0 else 0.0
+    recall = tp / (tp + fn) if (tp + fn) > 0 else 0.0
+    f1 = (
+        2 * precision * recall / (precision + recall)
+        if (precision + recall) > 0
+        else 0.0
+    )
+    return precision, recall, f1
 
 
 # ── 데이터 로드 ──────────────────────────────────────────────
@@ -118,17 +126,21 @@ def parse_bbox(d: Dict[str, int]) -> BBoxXYXY:
     return BBoxXYXY(x1=d["x1"], y1=d["y1"], x2=d["x2"], y2=d["y2"])
 
 
+# 평가 결과: (precision, recall, f1, avg_iou)
+Result = Tuple[float, float, float, float]
+
+
 # ── YOLO 벤치마크 ────────────────────────────────────────────
 
-def bench_yolo(weights: str, labels: List[Dict[str, Any]]) -> Tuple[float, float]:
-    """YOLO 모델 하나를 평가한다. Returns: (mAP@0.5, avg_iou)"""
+def bench_yolo(weights: str, labels: List[Dict[str, Any]]) -> Result:
+    """YOLO 모델 하나를 평가한다. Returns: (precision, recall, f1, avg_iou)"""
     from src.models.yolo_detector import YoloDetector
 
     cfg = {"model": weights, "device": "cpu", "conf": 0.5, "classes": [0]}
     detector = YoloDetector(cfg)
 
     total_tp, total_fp, total_fn = 0, 0, 0
-    all_ious = []
+    all_ious: List[float] = []
 
     for item in labels:
         img_path = os.path.join(IMAGES_DIR, item["image"])
@@ -141,29 +153,32 @@ def bench_yolo(weights: str, labels: List[Dict[str, Any]]) -> Tuple[float, float
         pred_boxes = [d.bbox for d in dets]
         gt_boxes = [parse_bbox(b) for b in item.get("persons", [])]
 
-        tp, fp, fn, avg_iou = match_and_score(pred_boxes, gt_boxes)
+        tp, fp, fn, matched_ious = match_and_score(pred_boxes, gt_boxes)
         total_tp += tp
         total_fp += fp
         total_fn += fn
-        if avg_iou > 0:
-            all_ious.append(avg_iou)
+        all_ious.extend(matched_ious)
 
-    map50 = compute_map(total_tp, total_fp, total_fn)
+    precision, recall, f1 = compute_metrics(total_tp, total_fp, total_fn)
     mean_iou = float(np.mean(all_ious)) if all_ious else 0.0
-    return map50, mean_iou
+    return precision, recall, f1, mean_iou
 
 
 # ── Face 벤치마크 ────────────────────────────────────────────
 
-def bench_face(weights: str, labels: List[Dict[str, Any]]) -> Tuple[float, float]:
-    """FaceDetector 모델 하나를 평가한다. Returns: (mAP@0.5, avg_iou)"""
+def bench_face(weights: str, labels: List[Dict[str, Any]]) -> Result:
+    """FaceDetector 모델 하나를 평가한다. Returns: (precision, recall, f1, avg_iou)
+
+    주의: 정답 person bbox를 crop 입력으로 주는 '조건부' 평가다.
+    (person 검출이 완벽하다는 전제하의 얼굴 검출 성능)
+    """
     from src.models.face_openvino import FaceDetector
 
     cfg = {"weights": weights, "device": "CPU", "conf_thresh": 0.5}
     detector = FaceDetector(cfg)
 
     total_tp, total_fp, total_fn = 0, 0, 0
-    all_ious = []
+    all_ious: List[float] = []
 
     for item in labels:
         img_path = os.path.join(IMAGES_DIR, item["image"])
@@ -183,29 +198,32 @@ def bench_face(weights: str, labels: List[Dict[str, Any]]) -> Tuple[float, float
             if track.crop_bbox is not None:
                 pred_faces.append(track.crop_bbox)
 
-        tp, fp, fn, avg_iou = match_and_score(pred_faces, gt_faces)
+        tp, fp, fn, matched_ious = match_and_score(pred_faces, gt_faces)
         total_tp += tp
         total_fp += fp
         total_fn += fn
-        if avg_iou > 0:
-            all_ious.append(avg_iou)
+        all_ious.extend(matched_ious)
 
-    map50 = compute_map(total_tp, total_fp, total_fn)
+    precision, recall, f1 = compute_metrics(total_tp, total_fp, total_fn)
     mean_iou = float(np.mean(all_ious)) if all_ious else 0.0
-    return map50, mean_iou
+    return precision, recall, f1, mean_iou
 
 
 # ── Eye 벤치마크 ─────────────────────────────────────────────
 
-def bench_eye(weights: str, labels: List[Dict[str, Any]]) -> Tuple[float, float]:
-    """EyeDetector 모델 하나를 평가한다. Returns: (mAP@0.5, avg_iou)"""
+def bench_eye(weights: str, labels: List[Dict[str, Any]]) -> Result:
+    """EyeDetector 모델 하나를 평가한다. Returns: (precision, recall, f1, avg_iou)
+
+    주의: 눈은 객체가 작아 IoU가 구조적으로 낮게 나온다. IOU_THRESH=0.5는
+    눈 검출에는 다소 가혹할 수 있다.
+    """
     from src.models.eye_openvino import EyeDetector
 
     cfg = {"weights": weights, "device": "CPU"}
     detector = EyeDetector(cfg)
 
     total_tp, total_fp, total_fn = 0, 0, 0
-    all_ious = []
+    all_ious: List[float] = []
 
     for item in labels:
         img_path = os.path.join(IMAGES_DIR, item["image"])
@@ -224,7 +242,7 @@ def bench_eye(weights: str, labels: List[Dict[str, Any]]) -> Tuple[float, float]
             # left eye
             if track.left_eye is not None:
                 iou_l = compute_iou(track.left_eye, gt_left)
-                if iou_l >= 0.5:
+                if iou_l >= IOU_THRESH:
                     total_tp += 1
                     all_ious.append(iou_l)
                 else:
@@ -235,7 +253,7 @@ def bench_eye(weights: str, labels: List[Dict[str, Any]]) -> Tuple[float, float]
             # right eye
             if track.right_eye is not None:
                 iou_r = compute_iou(track.right_eye, gt_right)
-                if iou_r >= 0.5:
+                if iou_r >= IOU_THRESH:
                     total_tp += 1
                     all_ious.append(iou_r)
                 else:
@@ -243,17 +261,20 @@ def bench_eye(weights: str, labels: List[Dict[str, Any]]) -> Tuple[float, float]
             else:
                 total_fn += 1
 
-    map50 = compute_map(total_tp, total_fp, total_fn)
+    precision, recall, f1 = compute_metrics(total_tp, total_fp, total_fn)
     mean_iou = float(np.mean(all_ious)) if all_ious else 0.0
-    return map50, mean_iou
+    return precision, recall, f1, mean_iou
 
 
 # ── 결과 출력 ────────────────────────────────────────────────
 
-def print_comparison(title: str, result_a: Tuple[float, float], result_b: Tuple[float, float]) -> None:
+def print_comparison(title: str, result_a: Result, result_b: Result) -> None:
+    pa, ra, fa, ia = result_a
+    pb, rb, fb, ib = result_b
     print(f"\n=== {title} ===")
-    print(f"  Model A: mAP@0.5 = {result_a[0]:.4f}, avg IoU = {result_a[1]:.4f}")
-    print(f"  Model B: mAP@0.5 = {result_b[0]:.4f}, avg IoU = {result_b[1]:.4f}")
+    print(f"  {'':9}{'Precision':>10}{'Recall':>10}{'F1':>10}{'avg IoU':>10}")
+    print(f"  Model A: {pa:>9.4f}{ra:>10.4f}{fa:>10.4f}{ia:>10.4f}")
+    print(f"  Model B: {pb:>9.4f}{rb:>10.4f}{fb:>10.4f}{ib:>10.4f}")
 
 
 # ── 메인 ─────────────────────────────────────────────────────
@@ -279,7 +300,7 @@ def main() -> None:
     face_a = bench_face(FACE_WEIGHTS_A, labels)
     logger.info("Face Model B 평가 중...")
     face_b = bench_face(FACE_WEIGHTS_B, labels)
-    print_comparison("Face Detection", face_a, face_b)
+    print_comparison("Face Detection (조건부: GT person crop 입력)", face_a, face_b)
 
     # Eye
     logger.info("Eye Model A 평가 중...")
