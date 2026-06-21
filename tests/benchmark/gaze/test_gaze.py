@@ -26,7 +26,7 @@ from src.utils.types import BBoxXYXY, HeadPose, Track
 
 # ── 설정 ──────────────────────────────────────────────────────
 DATA_DIR = "data/benchmark/gaze"
-IMAGES_DIR = os.path.join(DATA_DIR, "images")
+IMAGES_DIR = os.path.join(DATA_DIR, "MPIIFaceGaze")
 LABELS_PATH = os.path.join(DATA_DIR, "labels.json")
 
 GAZE_WEIGHTS = "weights/gaze/gaze-estimation-adas-0002.xml"
