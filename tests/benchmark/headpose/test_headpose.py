@@ -3,12 +3,12 @@ Headpose 모델 벤치마크: 6DRepNet (yaw, pitch, roll)
 정답 라벨과 현재 가중치를 비교하여 MAE(Mean Absolute Error)를 측정한다.
 
 사용법:
-    python -m tests.benchmark.test_headpose
+    python -m tests.benchmark.headpose.test_headpose
 
 데이터 구조:
     data/benchmark/headpose/
-    ├── images/         # 테스트 이미지
-    └── labels.json     # 정답 라벨
+    ├── AFLW2000/       # 테스트 이미지 + .mat 파일 (원본)
+    └── labels.json     # convert_aflw2000.py 로 생성
 """
 from __future__ import annotations
 
@@ -25,7 +25,7 @@ from src.utils.types import BBoxXYXY, Track
 
 # ── 설정 ──────────────────────────────────────────────────────
 DATA_DIR = "data/benchmark/headpose"
-IMAGES_DIR = os.path.join(DATA_DIR, "images")
+IMAGES_DIR = os.path.join(DATA_DIR, "AFLW2000")
 LABELS_PATH = os.path.join(DATA_DIR, "labels.json")
 
 HEADPOSE_WEIGHTS = "weights/headpose/6DRepNet_300W_LP_AFLW2000.pth"
@@ -101,12 +101,18 @@ def bench_headpose(
 
         track = estimator.infer(frame, track)
 
-        if track.headpose is None:
+        # 모델 실패 시 HeadPose(0,0,0)을 반환하므로 None 체크 대신 zero 체크
+        if track.headpose is None or (
+            track.headpose.yaw == 0.0
+            and track.headpose.pitch == 0.0
+            and track.headpose.roll == 0.0
+        ):
             continue
 
         preds.append((track.headpose.yaw, track.headpose.pitch, track.headpose.roll))
         gts.append((item["yaw"], item["pitch"], item["roll"]))
 
+    logger.info(f"추론 성공: {len(preds)} / {len(labels)}")
     return compute_mae(preds, gts)
 
 

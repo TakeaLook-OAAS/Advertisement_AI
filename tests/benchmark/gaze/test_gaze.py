@@ -3,7 +3,7 @@ Gaze 모델 벤치마크: gaze-estimation-adas (3D gaze vector)
 정답 라벨과 현재 가중치를 비교하여 Angular Error를 측정한다.
 
 사용법:
-    python -m tests.benchmark.test_gaze
+    python -m tests.benchmark.gaze.test_gaze
 
 데이터 구조:
     data/benchmark/gaze/
@@ -26,7 +26,7 @@ from src.utils.types import BBoxXYXY, HeadPose, Track
 
 # ── 설정 ──────────────────────────────────────────────────────
 DATA_DIR = "data/benchmark/gaze"
-IMAGES_DIR = os.path.join(DATA_DIR, "images")
+IMAGES_DIR = os.path.join(DATA_DIR, "MPIIFaceGaze")
 LABELS_PATH = os.path.join(DATA_DIR, "labels.json")
 
 GAZE_WEIGHTS = "weights/gaze/gaze-estimation-adas-0002.xml"
