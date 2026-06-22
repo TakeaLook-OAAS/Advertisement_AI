@@ -8,29 +8,27 @@ Gaze 모델 벤치마크: gaze-estimation-adas (3D gaze vector)
 데이터 구조:
     data/benchmark/gaze/
     ├── images/         # 테스트 이미지
-    └── labels.json     # 정답 라벨
+    └── labels_test.json     # 정답 라벨
 """
 from __future__ import annotations
 
 import json
-import math
 import os
 from typing import Any, Dict, List, Tuple
 
 import cv2
 import numpy as np
+import yaml
 from loguru import logger
 
 from src.utils.types import BBoxXYXY, HeadPose, Track
 
+CONFIG_PATH = "configs/test.yaml"
 
-# ── 설정 ──────────────────────────────────────────────────────
-DATA_DIR = "data/benchmark/gaze"
-IMAGES_DIR = os.path.join(DATA_DIR, "MPIIFaceGaze")
-LABELS_PATH = os.path.join(DATA_DIR, "labels_test.json")
 
-GAZE_WEIGHTS_OV = "weights/gaze/gaze-estimation-adas-0002.xml"
-GAZE_WEIGHTS_PT = "weights/gaze/gaze_pytorch.pth"
+def load_config() -> Dict[str, Any]:
+    with open(CONFIG_PATH, "r", encoding="utf-8") as f:
+        return yaml.safe_load(f)["gaze"]
 
 
 # ── 메트릭 함수 ──────────────────────────────────────────────
@@ -69,12 +67,7 @@ def compute_angular_stats(errors: List[float]) -> Tuple[float, float]:
     return float(np.mean(errors)), float(np.median(errors))
 
 
-# ── 데이터 로드 ──────────────────────────────────────────────
-
-def load_labels() -> List[Dict[str, Any]]:
-    with open(LABELS_PATH, "r", encoding="utf-8") as f:
-        return json.load(f)
-
+# ── 유틸 ─────────────────────────────────────────────────────
 
 def parse_bbox(d: Dict[str, int]) -> BBoxXYXY:
     return BBoxXYXY(x1=d["x1"], y1=d["y1"], x2=d["x2"], y2=d["y2"])
@@ -83,24 +76,29 @@ def parse_bbox(d: Dict[str, int]) -> BBoxXYXY:
 # ── Gaze 벤치마크 ────────────────────────────────────────────
 
 def bench_gaze(
-    weights: str, labels: List[Dict[str, Any]]
+    weights: str,
+    backend: str,
+    images_dir: str,
+    labels: List[Dict[str, Any]],
+    device: str = "CPU",
 ) -> Tuple[float, float]:
     """
     GazeDetector 모델 하나를 평가한다.
+    backend: "openvino" | "pytorch"
     Returns: (mean_error, median_error)
     """
-    if weights.endswith(".pth"):
+    if backend == "pytorch":
         from src.models.gaze.gaze_pytorch import GazeDetector
     else:
         from src.models.gaze_openvino import GazeDetector
 
-    cfg = {"weights": weights, "device": "CPU"}
+    cfg = {"weights": weights, "device": device}
     detector = GazeDetector(cfg)
 
     errors: List[float] = []
 
     for item in labels:
-        img_path = os.path.join(IMAGES_DIR, item["image"])
+        img_path = os.path.join(images_dir, item["image"])
         frame = cv2.imread(img_path)
         if frame is None:
             logger.warning(f"이미지 로드 실패: {img_path}")
@@ -148,23 +146,34 @@ def print_result(result: Tuple[float, float]) -> None:
 # ── 메인 ─────────────────────────────────────────────────────
 
 def main() -> None:
-    if not os.path.exists(LABELS_PATH):
-        logger.error(f"라벨 파일이 없습니다: {LABELS_PATH}")
-        logger.info("data/benchmark/gaze/labels.json 을 먼저 준비하세요.")
+    cfg = load_config()
+    data_dir = cfg["data_dir"]
+    images_dir = os.path.join(data_dir, cfg["images_subdir"])
+    labels_path = os.path.join(data_dir, cfg["labels_file"])
+    weights_ov = cfg["weights"]["openvino"]["path"]
+    device_ov  = cfg["weights"]["openvino"]["device"]
+    weights_pt = cfg["weights"]["pytorch"]["path"]
+    device_pt  = cfg["weights"]["pytorch"]["device"]
+
+    if not os.path.exists(labels_path):
+        logger.error(f"라벨 파일이 없습니다: {labels_path}")
+        logger.info(f"{labels_path} 을 먼저 준비하세요.")
         return
 
-    labels = load_labels()
+    with open(labels_path, "r", encoding="utf-8") as f:
+        labels = json.load(f)
+
     logger.info(f"테스트 이미지 수: {len(labels)}")
 
     results = {}
 
-    if os.path.exists(GAZE_WEIGHTS_OV):
+    if os.path.exists(weights_ov):
         logger.info("OpenVINO 평가 중...")
-        results["OpenVINO"] = bench_gaze(GAZE_WEIGHTS_OV, labels)
+        results["OpenVINO"] = bench_gaze("openvino", weights_ov, images_dir, labels, device_ov)
 
-    if os.path.exists(GAZE_WEIGHTS_PT):
+    if os.path.exists(weights_pt):
         logger.info("PyTorch 평가 중...")
-        results["PyTorch"] = bench_gaze(GAZE_WEIGHTS_PT, labels)
+        results["PyTorch"] = bench_gaze("pytorch", weights_pt, images_dir, labels, device_pt)
 
     print("\n=== Gaze Angular Error 비교 (degrees) ===")
     print(f"{'모델':<12}  {'mean':>8}  {'median':>8}")

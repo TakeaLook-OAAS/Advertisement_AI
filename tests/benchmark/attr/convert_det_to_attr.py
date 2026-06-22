@@ -9,6 +9,8 @@ attr 라벨은 '사람 1명 = 1개 항목' 구조이고 person bbox + face bbox 
   2. 매칭된(=정면 얼굴 있는) 사람만 attr 항목으로 펼침(flatten)
   3. gender / age_group 은 빈 칸("")으로 남겨 사람이 채우게 함
 
+설정: configs/test.yaml → convert.attr
+
 사용법:
     python -m tests.benchmark.attr.convert_det_to_attr
 
@@ -28,16 +30,15 @@ import os
 import shutil
 from typing import Any, Dict, List, Optional, Tuple
 
+import yaml
 from loguru import logger
 
+CONFIG_PATH = "configs/test.yaml"
 
-DET_DIR = "data/benchmark/detection"
-DET_LABELS = os.path.join(DET_DIR, "labels.json")
-DET_IMAGES = os.path.join(DET_DIR, "images")
 
-ATTR_DIR = "data/benchmark/attr"
-ATTR_LABELS = os.path.join(ATTR_DIR, "labels.json")
-ATTR_IMAGES = os.path.join(ATTR_DIR, "images")
+def load_config() -> Dict[str, Any]:
+    with open(CONFIG_PATH, "r", encoding="utf-8") as f:
+        return yaml.safe_load(f)["convert"]["attr"]
 
 
 def center_of(box: Dict[str, int]) -> Tuple[float, float]:
@@ -71,14 +72,23 @@ def match_face_to_person(
 
 
 def main() -> None:
-    if not os.path.exists(DET_LABELS):
-        logger.error(f"detection 라벨이 없습니다: {DET_LABELS}")
+    cfg = load_config()
+    det_dir = cfg["det_dir"]
+    attr_dir = cfg["attr_dir"]
+
+    det_labels_path = os.path.join(det_dir, "labels.json")
+    det_images_dir = os.path.join(det_dir, "images")
+    attr_labels_path = os.path.join(attr_dir, "labels.json")
+    attr_images_dir = os.path.join(attr_dir, "images")
+
+    if not os.path.exists(det_labels_path):
+        logger.error(f"detection 라벨이 없습니다: {det_labels_path}")
         return
 
-    with open(DET_LABELS, "r", encoding="utf-8") as f:
+    with open(det_labels_path, "r", encoding="utf-8") as f:
         det_labels = json.load(f)
 
-    os.makedirs(ATTR_IMAGES, exist_ok=True)
+    os.makedirs(attr_images_dir, exist_ok=True)
 
     attr_items: List[Dict[str, Any]] = []
     n_persons = 0
@@ -124,8 +134,8 @@ def main() -> None:
     # 사용된 이미지만 복사
     n_copied = 0
     for image in used_images:
-        src = os.path.join(DET_IMAGES, image)
-        dst = os.path.join(ATTR_IMAGES, image)
+        src = os.path.join(det_images_dir, image)
+        dst = os.path.join(attr_images_dir, image)
         if os.path.exists(src):
             os.makedirs(os.path.dirname(dst), exist_ok=True)
             shutil.copy2(src, dst)
@@ -133,7 +143,7 @@ def main() -> None:
         else:
             logger.warning(f"원본 이미지 없음: {src}")
 
-    with open(ATTR_LABELS, "w", encoding="utf-8") as f:
+    with open(attr_labels_path, "w", encoding="utf-8") as f:
         json.dump(attr_items, f, ensure_ascii=False, indent=2)
 
     logger.info("── 변환 요약 ──────────────────")
@@ -142,7 +152,7 @@ def main() -> None:
     logger.info(f"  person 매칭 성공      : {n_matched}  ← attr 항목 수")
     logger.info(f"  person 못 찾은 face   : {n_face_no_person}")
     logger.info(f"  복사된 이미지         : {n_copied}")
-    logger.info(f"저장: {ATTR_LABELS}")
+    logger.info(f"저장: {attr_labels_path}")
     logger.info("")
     logger.info('이제 attr/labels.json 의 각 항목에서 "gender", "age_group" 을 채우세요.')
     logger.info("값은 Gender / AgeGroup enum 의 .value 와 정확히 일치해야 합니다.")

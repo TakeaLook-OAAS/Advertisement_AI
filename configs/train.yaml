@@ -1,0 +1,53 @@
+# ── 학습 공통 설정 ────────────────────────────────────────────────────────────
+# scripts/gaze/ 아래 학습 관련 스크립트가 이 파일에서 경로·파라미터를 읽는다.
+# CONFIG_PATH = "configs/train.yaml" 기준 (프로젝트 루트에서 실행)
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+#  Gaze 라벨 생성 (gaze_generate_labels.py)
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+generate:
+  gaze:
+    mpiifacegaze_dir: "data/benchmark/gaze/MPIIFaceGaze"  # 원본 데이터셋 루트
+    output_path: "data/benchmark/gaze/labels_train.json"  # 생성할 라벨 JSON
+    headpose_weights: "weights/headpose/6DRepNet_300W_LP_AFLW2000.pth"
+    #headpose_device: "cpu"
+    headpose_device: "cuda"
+    subjects:                        # 학습 대상 피험자 (p00은 test set이므로 제외)
+      - p01
+      - p02
+      - p03
+      - p04
+      - p05
+      - p06
+      - p07
+      - p08
+      - p09
+      - p10
+      - p11
+      - p12
+      - p13
+      - p14
+    sample_every: 7                  # N장마다 1장 샘플링 (1이면 전체 ~51,000장)
+    eye_pad: 12                      # 눈 bbox 좌우 패딩 (px)
+    eye_min_half: 18                 # 눈 bbox 최소 half 크기 (px)
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+#  Gaze 모델 학습 (gaze_train.py)
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+train:
+  gaze:
+    labels_path: "data/benchmark/gaze/labels_train.json"  # gaze_generate_labels.py 출력
+    images_dir: "data/benchmark/gaze/MPIIFaceGaze"        # 이미지 루트
+    output_path: "weights/gaze/gaze_pytorch.pth"          # val error 최소 시점 저장
+    #device: "cpu"
+    device: "cuda"
+    epochs: 50
+    batch: 64
+    lr: 1.0e-3
+    val_ratio: 0.1                   # 전체 샘플 중 검증 비율
+    num_workers: 2                   # DataLoader worker 수
+    augment:
+      horizontal_flip: true          # 좌우 반전 (눈 교환 + gaze_x / yaw 부호 반전)
+      brightness_jitter: true        # 밝기 jitter (factor ∈ [0.7, 1.3])

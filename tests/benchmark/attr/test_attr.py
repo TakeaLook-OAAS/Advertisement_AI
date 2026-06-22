@@ -14,30 +14,21 @@ from __future__ import annotations
 
 import json
 import os
-from collections import Counter
 from typing import Any, Dict, List, Tuple
 
 import cv2
 import numpy as np
+import yaml
 from loguru import logger
 
 from src.utils.types import BBoxXYXY, Track
 
+CONFIG_PATH = "configs/test.yaml"
 
-# ── 설정 ──────────────────────────────────────────────────────
-DATA_DIR = "data/benchmark/attr"
-IMAGES_DIR = os.path.join(DATA_DIR, "images")
-LABELS_PATH = os.path.join(DATA_DIR, "labels.json")
 
-MIVOLO_WEIGHTS = "weights/age_gender/model_imdb_cross_person_4.22_99.46.pth"
-
-MIVOLO_CFG_BASE = {
-    "device": "cpu",
-    "repo_root": "MiVOLO",
-    "min_face_size": 20,
-    "min_person_size": 40,
-    "use_persons": True,
-}
+def load_config() -> Dict[str, Any]:
+    with open(CONFIG_PATH, "r", encoding="utf-8") as f:
+        return yaml.safe_load(f)["attr"]
 
 
 # ── 메트릭 함수 ──────────────────────────────────────────────
@@ -71,12 +62,7 @@ def compute_f1(preds: List[str], gts: List[str]) -> float:
     return float(np.mean(f1_scores)) if f1_scores else 0.0
 
 
-# ── 데이터 로드 ──────────────────────────────────────────────
-
-def load_labels() -> List[Dict[str, Any]]:
-    with open(LABELS_PATH, "r", encoding="utf-8") as f:
-        return json.load(f)
-
+# ── 유틸 ─────────────────────────────────────────────────────
 
 def parse_bbox(d: Dict[str, int]) -> BBoxXYXY:
     return BBoxXYXY(x1=d["x1"], y1=d["y1"], x2=d["x2"], y2=d["y2"])
@@ -85,7 +71,10 @@ def parse_bbox(d: Dict[str, int]) -> BBoxXYXY:
 # ── MiVOLO 벤치마크 ─────────────────────────────────────────
 
 def bench_mivolo(
-    weights: str, labels: List[Dict[str, Any]]
+    weights: str,
+    images_dir: str,
+    labels: List[Dict[str, Any]],
+    model_cfg: Dict[str, Any],
 ) -> Tuple[float, float, float, float]:
     """
     MiVOLO 모델 하나를 평가한다.
@@ -93,7 +82,7 @@ def bench_mivolo(
     """
     from src.models.mivolo_attr import MiVOLOAttr
 
-    cfg = {**MIVOLO_CFG_BASE, "model": weights}
+    cfg = {**model_cfg, "model": weights}
     model = MiVOLOAttr(cfg)
 
     pred_genders: List[str] = []
@@ -102,7 +91,7 @@ def bench_mivolo(
     gt_ages: List[str] = []
 
     for item in labels:
-        img_path = os.path.join(IMAGES_DIR, item["image"])
+        img_path = os.path.join(images_dir, item["image"])
         frame = cv2.imread(img_path)
         if frame is None:
             logger.warning(f"이미지 로드 실패: {img_path}")
@@ -143,16 +132,30 @@ def print_result(result: Tuple[float, float, float, float]) -> None:
 # ── 메인 ─────────────────────────────────────────────────────
 
 def main() -> None:
-    if not os.path.exists(LABELS_PATH):
-        logger.error(f"라벨 파일이 없습니다: {LABELS_PATH}")
-        logger.info("data/benchmark/attr/labels.json 을 먼저 준비하세요.")
+    cfg = load_config()
+    data_dir = cfg["data_dir"]
+    images_dir = os.path.join(data_dir, cfg["images_subdir"])
+    labels_path = os.path.join(data_dir, cfg["labels_file"])
+    weights = cfg["weights"]
+    model_cfg = {
+        "device": cfg["device"],
+        "repo_root": cfg["repo_root"],
+        "min_face_size": cfg["min_face_size"],
+        "min_person_size": cfg["min_person_size"],
+        "use_persons": cfg["use_persons"],
+    }
+
+    if not os.path.exists(labels_path):
+        logger.error(f"라벨 파일이 없습니다: {labels_path}")
+        logger.info(f"{labels_path} 을 먼저 준비하세요.")
         return
 
-    labels = load_labels()
-    logger.info(f"테스트 이미지 수: {len(labels)}")
+    with open(labels_path, "r", encoding="utf-8") as f:
+        labels = json.load(f)
 
+    logger.info(f"테스트 이미지 수: {len(labels)}")
     logger.info("MiVOLO 평가 중...")
-    print_result(bench_mivolo(MIVOLO_WEIGHTS, labels))
+    print_result(bench_mivolo(weights, images_dir, labels, model_cfg))
 
 
 if __name__ == "__main__":

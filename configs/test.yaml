@@ -1,0 +1,117 @@
+# ── 벤치마크 공통 설정 ────────────────────────────────────────────────────────
+# tests/benchmark/ 아래 모든 스크립트(test_*, convert_*, visualize_*, 기타)가
+# 이 파일 하나에서 경로·파라미터를 읽는다.
+# CONFIG_PATH = "configs/test.yaml" 기준 (프로젝트 루트에서 실행)
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+#  벤치마크 테스트 (test_*.py)
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+headpose:
+  data_dir: "data/benchmark/headpose"        # 라벨/이미지 루트
+  images_subdir: "AFLW2000"                  # data_dir 아래 이미지 폴더
+  labels_file: "labels.json"                 # convert_aflw2000.py 가 생성
+  weights: "weights/headpose/6DRepNet_300W_LP_AFLW2000.pth"
+  #device: "cpu"                              # cpu / cuda
+  device: "cuda"
+
+attr:
+  data_dir: "data/benchmark/attr"
+  images_subdir: "images"
+  labels_file: "labels.json"
+  weights: "weights/age_gender/model_imdb_cross_person_4.22_99.46.pth"
+  #device: "cpu"
+  device: "cuda"
+  repo_root: "MiVOLO"                        # MiVOLO 저장소 루트 (임포트 경로)
+  min_face_size: 20                          # 이 크기 미만 얼굴 스킵 (px)
+  min_person_size: 40                        # 이 크기 미만 사람 스킵 (px)
+  use_persons: true
+
+detection:
+  data_dir: "data/benchmark/detection"
+  images_subdir: "images"
+  labels_file: "labels.json"
+  iou_thresh: 0.5                            # TP 판정 IoU 기준
+  yolo:
+    weights: "weights/yolo/yolov8n.pt"
+    #device: "cpu"
+    device: "cuda"
+    conf: 0.5                               # YOLO confidence threshold
+    classes: [0]                            # 0 = person (COCO)
+  face:
+    weights: "weights/face_detection/face-detection-adas-0001.xml"
+    device: "CPU"
+    conf_thresh: 0.5
+  eye:
+    weights: "weights/eye_detection/facial-landmarks-35-adas-0002.xml"
+    device: "CPU"
+
+gaze:
+  data_dir: "data/benchmark/gaze"
+  images_subdir: "MPIIFaceGaze"
+  labels_file: "labels_test.json"            # convert_mpiifacegaze.py 가 생성
+  weights:
+    openvino:
+      path: "weights/gaze/gaze-estimation-adas-0002.xml"
+      device: "CPU"              # OpenVINO: CPU / GPU
+    pytorch:
+      path: "weights/gaze/gaze_pytorch.pth"
+      device: "cuda"              # PyTorch: cpu / cuda
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+#  변환 스크립트 (convert_*.py, annotations_to_json.py)
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+convert:
+  headpose:
+    source_dir: "data/benchmark/headpose/AFLW2000"  # .mat + .jpg 원본 폴더
+    output_path: "data/benchmark/headpose/labels.json"
+    yaw_limit: 99.0   # |yaw| > 이 값이면 제외 (6DRepNet 논문 기준)
+    padding: 0.20     # 랜드마크 bbox 확장 비율 (6DRepNet 논문 기준)
+
+  attr:
+    det_dir: "data/benchmark/detection"   # detection labels.json 루트
+    attr_dir: "data/benchmark/attr"       # 출력 attr labels.json + images/ 루트
+
+  gaze:
+    mpiifacegaze_dir: "data/benchmark/gaze/MPIIFaceGaze"
+    subject: "p00"                        # 변환할 피험자 ID
+    output_path: "data/benchmark/gaze/labels_test.json"
+    headpose_weights: "weights/headpose/6DRepNet_300W_LP_AFLW2000.pth"
+    #headpose_device: "cpu"               # headpose 추정 device: cpu / cuda
+    headpose_device: "cuda"
+    eye_pad: 12                           # 눈 bbox 좌우 패딩 (px)
+    eye_min_half: 18                      # 눈 bbox 최소 half 크기 (px)
+    sample_every: 1                       # N 장마다 1장 샘플링 (1이면 전체 ~3700장)
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+#  프레임 추출 스크립트 (extract_frames.py)
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+extract_frames:
+  output_dir: "data/benchmark/detection/images"  # 추출된 프레임 저장 폴더
+  samples_dir: "data/samples"                    # 원본 영상 폴더
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+#  시각화 스크립트 (visualize_*.py, sweep_gaze_signs.py)
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+visualize:
+  detection_bbox:
+    out_dir: "data/benchmark/detection/bbox_check"  # YOLO 시각화 저장 폴더
+
+  detection_face:
+    out_dir: "data/benchmark/detection/face_check"  # Face 시각화 저장 폴더
+
+  gaze:
+    weights:
+      #openvino:
+        #path: "weights/gaze/gaze-estimation-adas-0002.xml"
+        #device: "CPU"              # OpenVINO: CPU / GPU
+      pytorch:
+        path: "weights/gaze/gaze_pytorch.pth"
+        device: "cuda"              # PyTorch: cpu / cuda
+    save_dir: "data/benchmark/gaze/gaze_compare"    # 시각화 저장 루트
+    num_to_save: 40      # 순서대로 저장할 장 수
+    num_worst: 10        # 오차 큰 순으로 따로 저장할 장 수
+    arrow_scale: 120.0   # 화살표 픽셀 길이 스케일

@@ -11,6 +11,8 @@ test_gaze 의 MAE 가 20° 처럼 어중간할 때, 원인이
   2) 각 경우에 대해 GT 에 (±x, ±y, ±z) 8가지 부호 조합 적용
   3) 16개 조합의 mean angular error 를 표로 출력 → 최소를 채택
 
+설정: configs/test.yaml → gaze (data_dir, images_subdir, labels_file, device, weights.openvino)
+
 사용법:
     python -m tests.benchmark.gaze.sweep_gaze_signs
 """
@@ -23,14 +25,17 @@ from typing import Any, Dict, List, Tuple
 
 import cv2
 import numpy as np
+import yaml
 from loguru import logger
 
 from src.utils.types import BBoxXYXY, HeadPose, Track
 
-DATA_DIR = "data/benchmark/gaze"
-IMAGES_DIR = os.path.join(DATA_DIR, "MPIIFaceGaze")
-LABELS_PATH = os.path.join(DATA_DIR, "labels_test.json")
-GAZE_WEIGHTS = "weights/gaze/gaze-estimation-adas-0002.xml"
+CONFIG_PATH = "configs/test.yaml"
+
+
+def load_config() -> Dict[str, Any]:
+    with open(CONFIG_PATH, "r", encoding="utf-8") as f:
+        return yaml.safe_load(f)["gaze"]
 
 
 def angular_error(pred: np.ndarray, gt: np.ndarray) -> float:
@@ -46,16 +51,23 @@ def parse_bbox(d: Dict[str, int]) -> BBoxXYXY:
 
 
 def main() -> None:
-    if not os.path.exists(LABELS_PATH):
-        logger.error(f"라벨 없음: {LABELS_PATH}")
+    cfg = load_config()
+    data_dir = cfg["data_dir"]
+    images_dir = os.path.join(data_dir, cfg["images_subdir"])
+    labels_path = os.path.join(data_dir, cfg["labels_file"])
+    gaze_weights = cfg["weights"]["openvino"]["path"]   # sweep 은 OpenVINO 모델만 사용
+    device       = cfg["weights"]["openvino"]["device"]
+
+    if not os.path.exists(labels_path):
+        logger.error(f"라벨 없음: {labels_path}")
         return
 
-    with open(LABELS_PATH, "r", encoding="utf-8") as f:
+    with open(labels_path, "r", encoding="utf-8") as f:
         labels: List[Dict[str, Any]] = json.load(f)
     logger.info(f"샘플 수: {len(labels)}")
 
     from src.models.gaze_openvino import GazeDetector
-    detector = GazeDetector({"weights": GAZE_WEIGHTS, "device": "CPU"})
+    detector = GazeDetector({"weights": gaze_weights, "device": device})
 
     # eye-swap 여부별로 0002 출력을 모아둔다. (pred, gt) 쌍 리스트.
     preds_by_swap: Dict[bool, List[np.ndarray]] = {False: [], True: []}
@@ -64,7 +76,7 @@ def main() -> None:
     for swap in (False, True):
         cache_gt = (swap is False)  # 첫 패스에서만 gt 수집
         for item in labels:
-            img_path = os.path.join(IMAGES_DIR, item["image"])
+            img_path = os.path.join(images_dir, item["image"])
             frame = cv2.imread(img_path)
             if frame is None:
                 continue

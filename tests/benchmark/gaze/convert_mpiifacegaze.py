@@ -24,6 +24,8 @@ headpose:
   MPIIFaceGaze 어노테이션에 yaw/pitch/roll 오일러각이 없으므로
   6DRepNet(HeadPoseEstimator)으로 각 이미지에서 직접 추정한다.
 
+설정: configs/test.yaml → convert.gaze
+
 사용법:
     python -m tests.benchmark.gaze.convert_mpiifacegaze
 """
@@ -32,27 +34,21 @@ from __future__ import annotations
 import json
 import os
 from pathlib import Path
-from typing import Optional
+from typing import Any, Dict, Optional
 
 import cv2
 import numpy as np
+import yaml
 
 from src.models.headpose_6drepnet import HeadPoseEstimator
 from src.utils.types import BBoxXYXY, Track
 
-# ── 설정 ──────────────────────────────────────────────────────
-MPIIFACEGAZE_DIR = "data/benchmark/gaze/MPIIFaceGaze"
-SUBJECT = "p00"
-OUTPUT_PATH = "data/benchmark/gaze/labels_test.json"
+CONFIG_PATH = "configs/test.yaml"
 
-HEADPOSE_WEIGHTS = "weights/headpose/6DRepNet_300W_LP_AFLW2000.pth"
 
-# eye bbox: 눈꼬리 두 점 기준 패딩(px), 최소 half 크기
-EYE_PAD = 12
-EYE_MIN_HALF = 18
-
-# p00 전체 ~3700장 중 샘플링 간격 (1이면 전체)
-SAMPLE_EVERY = 7  # ~500장
+def load_config() -> Dict[str, Any]:
+    with open(CONFIG_PATH, "r", encoding="utf-8") as f:
+        return yaml.safe_load(f)["convert"]["gaze"]
 
 
 def make_eye_bbox(
@@ -60,11 +56,13 @@ def make_eye_bbox(
     p_b: tuple[float, float],
     img_w: int,
     img_h: int,
+    eye_pad: int,
+    eye_min_half: int,
 ) -> dict:
     """눈꼬리 두 점(p_a, p_b)으로 정사각형에 가까운 bbox 생성."""
     cx = (p_a[0] + p_b[0]) / 2.0
     cy = (p_a[1] + p_b[1]) / 2.0
-    half = max(abs(p_a[0] - p_b[0]) / 2.0 + EYE_PAD, EYE_MIN_HALF)
+    half = max(abs(p_a[0] - p_b[0]) / 2.0 + eye_pad, eye_min_half)
     return {
         "x1": int(max(0, cx - half)),
         "y1": int(max(0, cy - half)),
@@ -104,10 +102,20 @@ def estimate_headpose(
 
 
 def main() -> None:
-    subject_dir = os.path.join(MPIIFACEGAZE_DIR, SUBJECT)
-    annotation_path = os.path.join(subject_dir, f"{SUBJECT}.txt")
+    cfg = load_config()
+    mpiifacegaze_dir = cfg["mpiifacegaze_dir"]
+    subject = cfg["subject"]
+    output_path = cfg["output_path"]
+    headpose_weights = cfg["headpose_weights"]
+    headpose_device = cfg["headpose_device"]  # cpu / cuda
+    eye_pad = cfg["eye_pad"]
+    eye_min_half = cfg["eye_min_half"]
+    sample_every = cfg["sample_every"]  # N 장마다 1장 샘플링 (1이면 전체)
 
-    estimator = HeadPoseEstimator({"weights": HEADPOSE_WEIGHTS, "device": "cpu"})
+    subject_dir = os.path.join(mpiifacegaze_dir, subject)
+    annotation_path = os.path.join(subject_dir, f"{subject}.txt")
+
+    estimator = HeadPoseEstimator({"weights": headpose_weights, "device": headpose_device})
 
     with open(annotation_path, "r") as f:
         lines = [l.strip() for l in f if l.strip()]
@@ -116,7 +124,7 @@ def main() -> None:
     skipped = 0
 
     for i, line in enumerate(lines):
-        if i % SAMPLE_EVERY != 0:
+        if i % sample_every != 0:
             continue
 
         cols = line.split()
@@ -152,8 +160,8 @@ def main() -> None:
         gaze_unit = gaze_raw / gaze_norm
 
         # ── eye bbox: 2D landmark 눈꼬리에서 직접 추출 ───────────
-        left_eye = make_eye_bbox(lm[0], lm[1], w, h)
-        right_eye = make_eye_bbox(lm[2], lm[3], w, h)
+        left_eye = make_eye_bbox(lm[0], lm[1], w, h, eye_pad, eye_min_half)
+        right_eye = make_eye_bbox(lm[2], lm[3], w, h, eye_pad, eye_min_half)
 
         # ── headpose: 6DRepNet 추정 ─────────────────────────────
         face_pts = [(int(x), int(y)) for (x, y) in lm]
@@ -163,7 +171,7 @@ def main() -> None:
             continue
 
         labels.append({
-            "image": f"{SUBJECT}/{img_rel}",
+            "image": f"{subject}/{img_rel}",
             "left_eye": left_eye,
             "right_eye": right_eye,
             "headpose": headpose,
@@ -174,11 +182,11 @@ def main() -> None:
             },
         })
 
-    os.makedirs(os.path.dirname(OUTPUT_PATH), exist_ok=True)
-    with open(OUTPUT_PATH, "w", encoding="utf-8") as f:
+    os.makedirs(os.path.dirname(output_path), exist_ok=True)
+    with open(output_path, "w", encoding="utf-8") as f:
         json.dump(labels, f, indent=2, ensure_ascii=False)
 
-    print(f"저장 완료: {OUTPUT_PATH}")
+    print(f"저장 완료: {output_path}")
     print(f"  총 샘플: {len(labels)}")
     print(f"  제외: {skipped}")
 
