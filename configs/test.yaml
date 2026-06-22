@@ -50,10 +50,13 @@ gaze:
   data_dir: "data/benchmark/gaze"
   images_subdir: "MPIIFaceGaze"
   labels_file: "labels_test.json"            # convert_mpiifacegaze.py 가 생성
-  device: "CPU"
   weights:
-    openvino: "weights/gaze/gaze-estimation-adas-0002.xml"
-    pytorch: "weights/gaze/gaze_pytorch.pth"
+    openvino:
+      path: "weights/gaze/gaze-estimation-adas-0002.xml"
+      device: "CPU"              # OpenVINO: CPU / GPU
+    pytorch:
+      path: "weights/gaze/gaze_pytorch.pth"
+      device: "cuda"              # PyTorch: cpu / cuda
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 #  변환 스크립트 (convert_*.py, annotations_to_json.py)
@@ -101,7 +104,13 @@ visualize:
     out_dir: "data/benchmark/detection/face_check"  # Face 시각화 저장 폴더
 
   gaze:
-    weights: "weights/gaze/gaze-estimation-adas-0002.xml"
+    weights:
+      #openvino:
+        #path: "weights/gaze/gaze-estimation-adas-0002.xml"
+        #device: "CPU"              # OpenVINO: CPU / GPU
+      pytorch:
+        path: "weights/gaze/gaze_pytorch.pth"
+        device: "cuda"              # PyTorch: cpu / cuda
     save_dir: "data/benchmark/gaze/gaze_compare"    # 시각화 저장 루트
     num_to_save: 40      # 순서대로 저장할 장 수
     num_worst: 10        # 오차 큰 순으로 따로 저장할 장 수

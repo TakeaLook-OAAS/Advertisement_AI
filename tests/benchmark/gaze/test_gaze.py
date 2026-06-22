@@ -77,15 +77,17 @@ def parse_bbox(d: Dict[str, int]) -> BBoxXYXY:
 
 def bench_gaze(
     weights: str,
+    backend: str,
     images_dir: str,
     labels: List[Dict[str, Any]],
     device: str = "CPU",
 ) -> Tuple[float, float]:
     """
     GazeDetector 모델 하나를 평가한다.
+    backend: "openvino" | "pytorch"
     Returns: (mean_error, median_error)
     """
-    if weights.endswith(".pth"):
+    if backend == "pytorch":
         from src.models.gaze.gaze_pytorch import GazeDetector
     else:
         from src.models.gaze_openvino import GazeDetector
@@ -148,9 +150,10 @@ def main() -> None:
     data_dir = cfg["data_dir"]
     images_dir = os.path.join(data_dir, cfg["images_subdir"])
     labels_path = os.path.join(data_dir, cfg["labels_file"])
-    device = cfg["device"]
-    weights_ov = cfg["weights"]["openvino"]
-    weights_pt = cfg["weights"]["pytorch"]
+    weights_ov = cfg["weights"]["openvino"]["path"]
+    device_ov  = cfg["weights"]["openvino"]["device"]
+    weights_pt = cfg["weights"]["pytorch"]["path"]
+    device_pt  = cfg["weights"]["pytorch"]["device"]
 
     if not os.path.exists(labels_path):
         logger.error(f"라벨 파일이 없습니다: {labels_path}")
@@ -166,11 +169,11 @@ def main() -> None:
 
     if os.path.exists(weights_ov):
         logger.info("OpenVINO 평가 중...")
-        results["OpenVINO"] = bench_gaze(weights_ov, images_dir, labels, device)
+        results["OpenVINO"] = bench_gaze("openvino", weights_ov, images_dir, labels, device_ov)
 
     if os.path.exists(weights_pt):
         logger.info("PyTorch 평가 중...")
-        results["PyTorch"] = bench_gaze(weights_pt, images_dir, labels, device)
+        results["PyTorch"] = bench_gaze("pytorch", weights_pt, images_dir, labels, device_pt)
 
     print("\n=== Gaze Angular Error 비교 (degrees) ===")
     print(f"{'모델':<12}  {'mean':>8}  {'median':>8}")

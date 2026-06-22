@@ -22,22 +22,21 @@ import cv2
 import numpy as np
 import torch
 import torch.nn.functional as F
+import yaml
 from torch.utils.data import DataLoader, Dataset
 
 from src.models.gaze.gaze_net import GazeNet
 
-# ── 기본 설정 ──────────────────────────────────────────────────
-LABELS_PATH = "data/benchmark/gaze/labels_train.json"
-IMAGES_DIR = "data/benchmark/gaze/MPIIFaceGaze"
-OUTPUT_PATH = "weights/gaze/gaze_pytorch.pth"
+CONFIG_PATH = "configs/train.yaml"
 EYE_SIZE = GazeNet.EYE_SIZE  # 60
 
 
 # ── Dataset ───────────────────────────────────────────────────
 
 class GazeDataset(Dataset):
-    def __init__(self, samples: list, augment: bool = False) -> None:
+    def __init__(self, samples: list, images_dir: str, augment: bool = False) -> None:
         self.samples = samples
+        self.images_dir = images_dir
         self.augment = augment
 
     def __len__(self) -> int:
@@ -45,7 +44,7 @@ class GazeDataset(Dataset):
 
     def __getitem__(self, idx: int):
         item = self.samples[idx]
-        frame = cv2.imread(os.path.join(IMAGES_DIR, item["image"]))
+        frame = cv2.imread(os.path.join(self.images_dir, item["image"]))
         if frame is None:
             return self.__getitem__((idx + 1) % len(self.samples))
 
@@ -125,13 +124,19 @@ def evaluate(model: GazeNet, loader: DataLoader, device) -> float:
 # ── 메인 ──────────────────────────────────────────────────────
 
 def main() -> None:
+    with open(CONFIG_PATH, "r", encoding="utf-8") as f:
+        cfg = yaml.safe_load(f)["train"]["gaze"]
+
     parser = argparse.ArgumentParser(description="GazeNet 학습")
-    parser.add_argument("--labels", default=LABELS_PATH, help="학습 라벨 JSON 경로")
-    parser.add_argument("--epochs", type=int, default=50)
-    parser.add_argument("--batch", type=int, default=64)
-    parser.add_argument("--lr", type=float, default=1e-3)
-    parser.add_argument("--val-ratio", type=float, default=0.1, help="검증 비율")
-    parser.add_argument("--out", default=OUTPUT_PATH, help="가중치 저장 경로")
+    parser.add_argument("--labels", default=cfg.get("labels_path", "data/benchmark/gaze/labels_train.json"))
+    parser.add_argument("--images-dir", default=cfg.get("images_dir", "data/benchmark/gaze/MPIIFaceGaze"))
+    parser.add_argument("--epochs", type=int, default=cfg.get("epochs", 50))
+    parser.add_argument("--batch", type=int, default=cfg.get("batch", 64))
+    parser.add_argument("--lr", type=float, default=cfg.get("lr", 1e-3))
+    parser.add_argument("--val-ratio", type=float, default=cfg.get("val_ratio", 0.1))
+    parser.add_argument("--num-workers", type=int, default=cfg.get("num_workers", 2))
+    parser.add_argument("--device", default=cfg.get("device", "cuda"))
+    parser.add_argument("--out", default=cfg.get("output_path", "weights/gaze/gaze_pytorch.pth"))
     args = parser.parse_args()
 
     if not os.path.exists(args.labels):
@@ -150,12 +155,12 @@ def main() -> None:
     val_samples = samples[:n_val]
     print(f"Train: {len(train_samples)} | Val: {len(val_samples)}")
 
-    train_ds = GazeDataset(train_samples, augment=True)
-    val_ds = GazeDataset(val_samples, augment=False)
-    train_loader = DataLoader(train_ds, batch_size=args.batch, shuffle=True, num_workers=2, pin_memory=True)
-    val_loader = DataLoader(val_ds, batch_size=args.batch, shuffle=False, num_workers=2)
+    train_ds = GazeDataset(train_samples, args.images_dir, augment=True)
+    val_ds = GazeDataset(val_samples, args.images_dir, augment=False)
+    train_loader = DataLoader(train_ds, batch_size=args.batch, shuffle=True, num_workers=args.num_workers, pin_memory=True)
+    val_loader = DataLoader(val_ds, batch_size=args.batch, shuffle=False, num_workers=args.num_workers)
 
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    device = torch.device(args.device if torch.cuda.is_available() or args.device == "cpu" else "cpu")
     print(f"Device: {device}\n")
 
     model = GazeNet().to(device)

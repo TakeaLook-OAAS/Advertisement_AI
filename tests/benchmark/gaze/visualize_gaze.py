@@ -1,16 +1,15 @@
 """
-Gaze 비교 시각화: GT(정답) vs 0002 예측
+Gaze 비교 시각화: GT(정답) vs 모델 예측
 
 각 이미지에 두 화살표를 겹쳐 그린다:
-  - 초록 화살표 : GT gaze (labels.json, 부호 정합 적용됨)
-  - 빨강 화살표 : gaze-estimation-adas-0002 예측
+  - 초록 화살표 : GT gaze (labels.json)
+  - 빨강 화살표 : 모델 예측
 
 두 화살표가 가까울수록 정확. 좌상단에 angular error(deg) 표시.
 오차가 큰 순으로도 따로 저장해 실패 케이스를 보기 쉽게 한다.
 
-헤드리스(Docker) 환경: 창을 띄우지 않고 파일로 저장.
-
 설정: configs/test.yaml → gaze, visualize.gaze
+백엔드 선택: visualize.gaze.weights 아래에서 사용할 모델 섹션만 주석 해제
 
 사용법:
     python -m tests.benchmark.gaze.visualize_gaze
@@ -59,14 +58,14 @@ def draw_gaze_arrow(
     vec: np.ndarray,
     color,
     arrow_scale: float,
-    thickness=2,
+    thickness: int = 2,
 ) -> None:
     """3D gaze 단위벡터를 2D 화살표로 근사 투영해 그린다.
     길이는 근사이므로 방향만 의미 있음. (x→오른쪽, y는 0002 기준 위쪽(+)이라
     이미지 y축(아래+)과 반대 → 화면 그릴 때 dy 부호를 뒤집는다.)"""
     gx, gy, gz = vec
     dx = arrow_scale * gx / max(abs(gz), 1e-3)
-    dy = -arrow_scale * gy / max(abs(gz), 1e-3)  # 0002 y(위+) → 이미지 y(아래+)
+    dy = -arrow_scale * gy / max(abs(gz), 1e-3)
     end = (int(origin[0] + dx), int(origin[1] + dy))
     cv2.arrowedLine(frame, origin, end, color, thickness, tipLength=0.25)
 
@@ -77,6 +76,7 @@ def render(
     err: float,
     images_dir: str,
     arrow_scale: float,
+    backend: str,
 ) -> np.ndarray | None:
     img_path = os.path.join(images_dir, item["image"])
     frame = cv2.imread(img_path)
@@ -84,7 +84,6 @@ def render(
         return None
 
     le, re = item["left_eye"], item["right_eye"]
-    # gaze 원점: 양 눈 중심의 중간
     lc, rc = eye_center(le), eye_center(re)
     origin = ((lc[0] + rc[0]) // 2, (lc[1] + rc[1]) // 2)
 
@@ -95,9 +94,8 @@ def render(
     draw_gaze_arrow(frame, origin, gt_vec, (0, 255, 0), arrow_scale, 2)
     draw_gaze_arrow(frame, origin, pred, (0, 0, 255), arrow_scale, 2)
 
-    # 텍스트
     lines = [
-        item["image"],
+        f"[{backend}] {item['image']}",
         f"err={err:.1f} deg",
         f"GT  =({gt_vec[0]:+.2f},{gt_vec[1]:+.2f},{gt_vec[2]:+.2f})",
         f"pred=({pred[0]:+.2f},{pred[1]:+.2f},{pred[2]:+.2f})",
@@ -109,7 +107,6 @@ def render(
         cv2.putText(frame, txt, (8, y), cv2.FONT_HERSHEY_SIMPLEX,
                     0.5, (255, 255, 255), 1, cv2.LINE_AA)
 
-    # 범례
     cv2.putText(frame, "green=GT  red=pred", (8, frame.shape[0] - 12),
                 cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 255), 1, cv2.LINE_AA)
     return frame
@@ -117,15 +114,17 @@ def render(
 
 def main() -> None:
     gaze_cfg, vis_cfg = load_config()
-    data_dir = gaze_cfg["data_dir"]
-    images_dir = os.path.join(data_dir, gaze_cfg["images_subdir"])
+
+    backend     = next(iter(vis_cfg["weights"]))
+    data_dir    = gaze_cfg["data_dir"]
+    images_dir  = os.path.join(data_dir, gaze_cfg["images_subdir"])
     labels_path = os.path.join(data_dir, gaze_cfg["labels_file"])
-    device = gaze_cfg["device"]
-    gaze_weights = vis_cfg["weights"]   # 시각화는 OpenVINO 모델만 사용
-    save_dir = vis_cfg["save_dir"]
-    num_to_save = vis_cfg["num_to_save"]   # 순서대로 저장할 장 수
-    num_worst = vis_cfg["num_worst"]       # 오차 큰 순으로 따로 저장할 장 수
-    arrow_scale = vis_cfg["arrow_scale"]   # 화살표 픽셀 길이 스케일
+    weights     = vis_cfg["weights"][backend]["path"]
+    device      = vis_cfg["weights"][backend]["device"]
+    save_dir    = vis_cfg["save_dir"]
+    num_to_save = vis_cfg["num_to_save"]
+    num_worst   = vis_cfg["num_worst"]
+    arrow_scale = vis_cfg["arrow_scale"]
 
     if not os.path.exists(labels_path):
         logger.error(f"라벨 없음: {labels_path}")
@@ -133,11 +132,14 @@ def main() -> None:
 
     with open(labels_path, "r", encoding="utf-8") as f:
         labels: List[Dict[str, Any]] = json.load(f)
-    logger.info(f"샘플 수: {len(labels)}")
+    logger.info(f"샘플 수: {len(labels)}  |  모델: {backend}  |  device: {device}")
 
-    from src.models.gaze_openvino import GazeDetector
-    detector = GazeDetector({"weights": gaze_weights, "device": device})
+    if backend == "pytorch":
+        from src.models.gaze.gaze_pytorch import GazeDetector
+    else:
+        from src.models.gaze_openvino import GazeDetector
 
+    detector = GazeDetector({"weights": weights, "device": device})
     os.makedirs(save_dir, exist_ok=True)
 
     # ── 전체 추론 + error 계산 ───────────────────────────────
@@ -158,11 +160,11 @@ def main() -> None:
         track = detector.detect(frame, track)
         if track.gaze is None:
             continue
+
         pred = np.array([track.gaze.x, track.gaze.y, track.gaze.z])
         g = item["gaze"]
         gt = np.array([g["x"], g["y"], g["z"]])
-        err = angular_error(pred, gt)
-        records.append((err, item, pred))
+        records.append((angular_error(pred, gt), item, pred))
 
     if not records:
         logger.error("유효 샘플 없음")
@@ -175,7 +177,7 @@ def main() -> None:
     seq_dir = os.path.join(save_dir, "sequential")
     os.makedirs(seq_dir, exist_ok=True)
     for idx, (err, item, pred) in enumerate(records[:num_to_save]):
-        out = render(item, pred, err, images_dir, arrow_scale)
+        out = render(item, pred, err, images_dir, arrow_scale, backend)
         if out is not None:
             cv2.imwrite(os.path.join(seq_dir, f"cmp_{idx:04d}.jpg"), out)
 
@@ -185,7 +187,7 @@ def main() -> None:
     for rank, (err, item, pred) in enumerate(
         sorted(records, key=lambda r: r[0], reverse=True)[:num_worst]
     ):
-        out = render(item, pred, err, images_dir, arrow_scale)
+        out = render(item, pred, err, images_dir, arrow_scale, backend)
         if out is not None:
             cv2.imwrite(
                 os.path.join(worst_dir, f"worst_{rank:02d}_{err:.0f}deg.jpg"), out

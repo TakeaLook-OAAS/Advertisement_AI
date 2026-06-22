@@ -23,14 +23,12 @@ import os
 
 import cv2
 import numpy as np
+import yaml
 
 from src.models.headpose_6drepnet import HeadPoseEstimator
 from src.utils.types import BBoxXYXY, Track
 
-# ── 기본 설정 ──────────────────────────────────────────────────
-MPIIFACEGAZE_DIR = "data/benchmark/gaze/MPIIFaceGaze"
-OUTPUT_PATH = "data/benchmark/gaze/labels_train.json"
-HEADPOSE_WEIGHTS = "weights/headpose/6DRepNet_300W_LP_AFLW2000.pth"
+CONFIG_PATH = "configs/train.yaml"
 
 # p00 은 test set → 제외
 ALL_TRAIN_SUBJECTS = [f"p{i:02d}" for i in range(1, 15)]
@@ -78,8 +76,8 @@ def _estimate_headpose(estimator: HeadPoseEstimator, frame: np.ndarray, face_pts
     return {"yaw": hp.yaw, "pitch": hp.pitch, "roll": hp.roll}
 
 
-def _process_subject(subject: str, estimator: HeadPoseEstimator, every: int) -> tuple[list, int]:
-    subject_dir = os.path.join(MPIIFACEGAZE_DIR, subject)
+def _process_subject(subject: str, estimator: HeadPoseEstimator, every: int, mpiifacegaze_dir: str) -> tuple[list, int]:
+    subject_dir = os.path.join(mpiifacegaze_dir, subject)
     ann_path = os.path.join(subject_dir, f"{subject}.txt")
 
     with open(ann_path, "r") as f:
@@ -145,26 +143,33 @@ def _process_subject(subject: str, estimator: HeadPoseEstimator, every: int) -> 
 # ── 메인 ──────────────────────────────────────────────────────
 
 def main() -> None:
+    with open(CONFIG_PATH, "r", encoding="utf-8") as f:
+        cfg = yaml.safe_load(f)["generate"]["gaze"]
+
     parser = argparse.ArgumentParser(description="MPIIFaceGaze 학습 라벨 생성")
-    parser.add_argument(
-        "--subjects", nargs="+", default=ALL_TRAIN_SUBJECTS,
-        help="처리할 참여자 ID (기본: p01-p14)",
-    )
-    parser.add_argument(
-        "--every", type=int, default=3,
-        help="샘플링 간격 (기본 3 → 약 1/3 샘플, 1이면 전체)",
-    )
-    parser.add_argument("--out", default=OUTPUT_PATH, help="출력 JSON 경로")
+    parser.add_argument("--subjects", nargs="+", default=cfg.get("subjects", ALL_TRAIN_SUBJECTS))
+    parser.add_argument("--images-dir", default=cfg.get("mpiifacegaze_dir", "data/benchmark/gaze/MPIIFaceGaze"))
+    parser.add_argument("--every", type=int, default=cfg.get("sample_every", 3),
+                        help="샘플링 간격 (1이면 전체)")
+    parser.add_argument("--out", default=cfg.get("output_path", "data/benchmark/gaze/labels_train.json"))
+    parser.add_argument("--headpose-weights", default=cfg.get("headpose_weights", "weights/headpose/6DRepNet_300W_LP_AFLW2000.pth"))
+    parser.add_argument("--headpose-device", default=cfg.get("headpose_device", "cpu"))
+    parser.add_argument("--eye-pad", type=int, default=cfg.get("eye_pad", 12))
+    parser.add_argument("--eye-min-half", type=int, default=cfg.get("eye_min_half", 18))
     args = parser.parse_args()
 
-    estimator = HeadPoseEstimator({"weights": HEADPOSE_WEIGHTS, "device": "cpu"})
+    global EYE_PAD, EYE_MIN_HALF
+    EYE_PAD = args.eye_pad
+    EYE_MIN_HALF = args.eye_min_half
+
+    estimator = HeadPoseEstimator({"weights": args.headpose_weights, "device": args.headpose_device})
 
     all_labels: list = []
     total_skipped = 0
 
     for subject in args.subjects:
         print(f"[{subject}] 처리 중...")
-        labels, skipped = _process_subject(subject, estimator, args.every)
+        labels, skipped = _process_subject(subject, estimator, args.every, args.images_dir)
         all_labels.extend(labels)
         total_skipped += skipped
         print(f"  완료: {len(labels)}개 수집, {skipped}개 제외")

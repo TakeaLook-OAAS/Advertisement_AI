@@ -55,8 +55,8 @@ def main() -> None:
     data_dir = cfg["data_dir"]
     images_dir = os.path.join(data_dir, cfg["images_subdir"])
     labels_path = os.path.join(data_dir, cfg["labels_file"])
-    device = cfg["device"]
-    gaze_weights = cfg["weights"]["openvino"]  # sweep 은 OpenVINO 모델만 사용
+    gaze_weights = cfg["weights"]["openvino"]["path"]   # sweep 은 OpenVINO 모델만 사용
+    device       = cfg["weights"]["openvino"]["device"]
 
     if not os.path.exists(labels_path):
         logger.error(f"라벨 없음: {labels_path}")
