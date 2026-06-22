@@ -43,7 +43,7 @@ from src.utils.types import BBoxXYXY, Track
 # ── 설정 ──────────────────────────────────────────────────────
 MPIIFACEGAZE_DIR = "data/benchmark/gaze/MPIIFaceGaze"
 SUBJECT = "p00"
-OUTPUT_PATH = "data/benchmark/gaze/labels.json"
+OUTPUT_PATH = "data/benchmark/gaze/labels_test.json"
 
 HEADPOSE_WEIGHTS = "weights/headpose/6DRepNet_300W_LP_AFLW2000.pth"
 

@@ -29,7 +29,7 @@ from src.utils.types import BBoxXYXY, HeadPose, Track
 
 DATA_DIR = "data/benchmark/gaze"
 IMAGES_DIR = os.path.join(DATA_DIR, "MPIIFaceGaze")
-LABELS_PATH = os.path.join(DATA_DIR, "labels.json")
+LABELS_PATH = os.path.join(DATA_DIR, "labels_test.json")
 GAZE_WEIGHTS = "weights/gaze/gaze-estimation-adas-0002.xml"
 
 
