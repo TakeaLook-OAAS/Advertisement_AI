@@ -27,9 +27,10 @@ from src.utils.types import BBoxXYXY, HeadPose, Track
 # ── 설정 ──────────────────────────────────────────────────────
 DATA_DIR = "data/benchmark/gaze"
 IMAGES_DIR = os.path.join(DATA_DIR, "MPIIFaceGaze")
-LABELS_PATH = os.path.join(DATA_DIR, "labels.json")
+LABELS_PATH = os.path.join(DATA_DIR, "labels_test.json")
 
-GAZE_WEIGHTS = "weights/gaze/gaze-estimation-adas-0002.xml"
+GAZE_WEIGHTS_OV = "weights/gaze/gaze-estimation-adas-0002.xml"
+GAZE_WEIGHTS_PT = "weights/gaze/gaze_pytorch.pth"
 
 
 # ── 메트릭 함수 ──────────────────────────────────────────────
@@ -88,7 +89,10 @@ def bench_gaze(
     GazeDetector 모델 하나를 평가한다.
     Returns: (mean_error, median_error)
     """
-    from src.models.gaze_openvino import GazeDetector
+    if weights.endswith(".pth"):
+        from src.models.gaze.gaze_pytorch import GazeDetector
+    else:
+        from src.models.gaze_openvino import GazeDetector
 
     cfg = {"weights": weights, "device": "CPU"}
     detector = GazeDetector(cfg)
@@ -152,8 +156,21 @@ def main() -> None:
     labels = load_labels()
     logger.info(f"테스트 이미지 수: {len(labels)}")
 
-    logger.info("Gaze 평가 중...")
-    print_result(bench_gaze(GAZE_WEIGHTS, labels))
+    results = {}
+
+    if os.path.exists(GAZE_WEIGHTS_OV):
+        logger.info("OpenVINO 평가 중...")
+        results["OpenVINO"] = bench_gaze(GAZE_WEIGHTS_OV, labels)
+
+    if os.path.exists(GAZE_WEIGHTS_PT):
+        logger.info("PyTorch 평가 중...")
+        results["PyTorch"] = bench_gaze(GAZE_WEIGHTS_PT, labels)
+
+    print("\n=== Gaze Angular Error 비교 (degrees) ===")
+    print(f"{'모델':<12}  {'mean':>8}  {'median':>8}")
+    print("-" * 32)
+    for name, (mean, median) in results.items():
+        print(f"{name:<12}  {mean:>7.2f}°  {median:>7.2f}°")
 
 
 if __name__ == "__main__":
