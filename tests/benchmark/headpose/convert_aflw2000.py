@@ -6,6 +6,8 @@ test_headpose.py 가 읽는 labels.json 포맷으로 저장한다.
 
 필터: |yaw| > 99° 샘플 제외 (6DRepNet 논문 평가 기준과 동일)
 
+설정: configs/test.yaml → convert.headpose
+
 사용법:
     python -m tests.benchmark.headpose.convert_aflw2000
 """
@@ -13,19 +15,22 @@ from __future__ import annotations
 
 import json
 import os
+from typing import Any, Dict
 
 import numpy as np
 import scipy.io
+import yaml
 from PIL import Image
 
-AFLW2000_DIR = "data/benchmark/headpose/AFLW2000"
-OUTPUT_PATH = "data/benchmark/headpose/labels.json"
-
-YAW_LIMIT = 99.0
-PADDING = 0.20  # 6DRepNet 논문 평가 기준과 동일한 20% padding
+CONFIG_PATH = "configs/test.yaml"
 
 
-def pt2d_to_bbox(pt2d: np.ndarray, img_w: int, img_h: int) -> dict:
+def load_config() -> Dict[str, Any]:
+    with open(CONFIG_PATH, "r", encoding="utf-8") as f:
+        return yaml.safe_load(f)["convert"]["headpose"]
+
+
+def pt2d_to_bbox(pt2d: np.ndarray, img_w: int, img_h: int, padding: float) -> dict:
     """
     2D 랜드마크에서 face bbox를 구한다. (6DRepNet 원래 평가 코드와 동일)
     pt2d: (2, N) - x<0인 점은 invisible 마커이므로 제외한다.
@@ -42,10 +47,10 @@ def pt2d_to_bbox(pt2d: np.ndarray, img_w: int, img_h: int) -> dict:
     w = x_max - x_min
     h = y_max - y_min
 
-    x_min -= 2 * PADDING * w
-    y_min -= 2 * PADDING * h
-    x_max += 2 * PADDING * w
-    y_max += 2 * PADDING * h
+    x_min -= 2 * padding * w
+    y_min -= 2 * padding * h
+    x_max += 2 * padding * w
+    y_max += 2 * padding * h
 
     return {
         "x1": int(max(0, x_min)),
@@ -56,8 +61,14 @@ def pt2d_to_bbox(pt2d: np.ndarray, img_w: int, img_h: int) -> dict:
 
 
 def main() -> None:
+    cfg = load_config()
+    source_dir = cfg["source_dir"]
+    output_path = cfg["output_path"]
+    yaw_limit = cfg["yaw_limit"]
+    padding = cfg["padding"]
+
     mat_files = sorted(
-        f for f in os.listdir(AFLW2000_DIR) if f.endswith(".mat")
+        f for f in os.listdir(source_dir) if f.endswith(".mat")
     )
 
     labels = []
@@ -65,8 +76,8 @@ def main() -> None:
 
     for mat_file in mat_files:
         img_file = mat_file.replace(".mat", ".jpg")
-        img_path = os.path.join(AFLW2000_DIR, img_file)
-        mat_path = os.path.join(AFLW2000_DIR, mat_file)
+        img_path = os.path.join(source_dir, img_file)
+        mat_path = os.path.join(source_dir, mat_file)
 
         if not os.path.exists(img_path):
             continue
@@ -78,7 +89,7 @@ def main() -> None:
         yaw = float(np.degrees(pose[1]))
         roll = float(np.degrees(pose[2]))
 
-        if abs(yaw) > YAW_LIMIT:
+        if abs(yaw) > yaw_limit:
             skipped += 1
             continue
 
@@ -86,7 +97,7 @@ def main() -> None:
         img_w, img_h = img.size
 
         pt2d = mat["pt2d"]  # (2, N) 2D landmarks
-        face = pt2d_to_bbox(pt2d, img_w, img_h)
+        face = pt2d_to_bbox(pt2d, img_w, img_h, padding)
 
         labels.append({
             "image": img_file,
@@ -96,12 +107,13 @@ def main() -> None:
             "roll": roll,
         })
 
-    with open(OUTPUT_PATH, "w", encoding="utf-8") as f:
+    os.makedirs(os.path.dirname(output_path), exist_ok=True)
+    with open(output_path, "w", encoding="utf-8") as f:
         json.dump(labels, f, indent=2, ensure_ascii=False)
 
-    print(f"저장 완료: {OUTPUT_PATH}")
+    print(f"저장 완료: {output_path}")
     print(f"  총 샘플: {len(labels)}")
-    print(f"  제외 (|yaw| > {YAW_LIMIT}°): {skipped}")
+    print(f"  제외 (|yaw| > {yaw_limit}°): {skipped}")
 
 
 if __name__ == "__main__":

@@ -10,6 +10,8 @@ Gaze 비교 시각화: GT(정답) vs 0002 예측
 
 헤드리스(Docker) 환경: 창을 띄우지 않고 파일로 저장.
 
+설정: configs/test.yaml → gaze, visualize.gaze
+
 사용법:
     python -m tests.benchmark.gaze.visualize_gaze
 """
@@ -21,21 +23,18 @@ from typing import Any, Dict, List, Tuple
 
 import cv2
 import numpy as np
+import yaml
 from loguru import logger
 
 from src.utils.types import BBoxXYXY, HeadPose, Track
 
-# ── 설정 ──────────────────────────────────────────────────────
-DATA_DIR = "data/benchmark/gaze"
-IMAGES_DIR = os.path.join(DATA_DIR, "MPIIFaceGaze")
-LABELS_PATH = os.path.join(DATA_DIR, "labels_test.json")
-GAZE_WEIGHTS = "weights/gaze/gaze-estimation-adas-0002.xml"
-# 아직 gaze_pytorch.pth 가중치 시각화 안했음
+CONFIG_PATH = "configs/test.yaml"
 
-SAVE_DIR = os.path.join(DATA_DIR, "gaze_compare")
-NUM_TO_SAVE = 40           # 순서대로 저장할 장수
-NUM_WORST = 10             # 오차 큰 순으로 따로 저장할 장수
-ARROW_SCALE = 120.0        # 화살표 픽셀 길이 스케일
+
+def load_config() -> Tuple[Dict[str, Any], Dict[str, Any]]:
+    with open(CONFIG_PATH, "r", encoding="utf-8") as f:
+        cfg = yaml.safe_load(f)
+    return cfg["gaze"], cfg["visualize"]["gaze"]
 
 
 def parse_bbox(d: Dict[str, int]) -> BBoxXYXY:
@@ -55,22 +54,31 @@ def eye_center(bbox: Dict[str, int]) -> Tuple[int, int]:
 
 
 def draw_gaze_arrow(
-    frame: np.ndarray, origin: Tuple[int, int], vec: np.ndarray, color, thickness=2
+    frame: np.ndarray,
+    origin: Tuple[int, int],
+    vec: np.ndarray,
+    color,
+    arrow_scale: float,
+    thickness=2,
 ) -> None:
     """3D gaze 단위벡터를 2D 화살표로 근사 투영해 그린다.
     길이는 근사이므로 방향만 의미 있음. (x→오른쪽, y는 0002 기준 위쪽(+)이라
     이미지 y축(아래+)과 반대 → 화면 그릴 때 dy 부호를 뒤집는다.)"""
     gx, gy, gz = vec
-    dx = ARROW_SCALE * gx / max(abs(gz), 1e-3)
-    dy = -ARROW_SCALE * gy / max(abs(gz), 1e-3)  # 0002 y(위+) → 이미지 y(아래+)
+    dx = arrow_scale * gx / max(abs(gz), 1e-3)
+    dy = -arrow_scale * gy / max(abs(gz), 1e-3)  # 0002 y(위+) → 이미지 y(아래+)
     end = (int(origin[0] + dx), int(origin[1] + dy))
     cv2.arrowedLine(frame, origin, end, color, thickness, tipLength=0.25)
 
 
 def render(
-    item: Dict[str, Any], pred: np.ndarray, err: float
+    item: Dict[str, Any],
+    pred: np.ndarray,
+    err: float,
+    images_dir: str,
+    arrow_scale: float,
 ) -> np.ndarray | None:
-    img_path = os.path.join(IMAGES_DIR, item["image"])
+    img_path = os.path.join(images_dir, item["image"])
     frame = cv2.imread(img_path)
     if frame is None:
         return None
@@ -84,8 +92,8 @@ def render(
     gt_vec = np.array([g["x"], g["y"], g["z"]])
 
     # 화살표: 초록=GT, 빨강=예측
-    draw_gaze_arrow(frame, origin, gt_vec, (0, 255, 0), 2)
-    draw_gaze_arrow(frame, origin, pred, (0, 0, 255), 2)
+    draw_gaze_arrow(frame, origin, gt_vec, (0, 255, 0), arrow_scale, 2)
+    draw_gaze_arrow(frame, origin, pred, (0, 0, 255), arrow_scale, 2)
 
     # 텍스트
     lines = [
@@ -108,23 +116,34 @@ def render(
 
 
 def main() -> None:
-    if not os.path.exists(LABELS_PATH):
-        logger.error(f"라벨 없음: {LABELS_PATH}")
+    gaze_cfg, vis_cfg = load_config()
+    data_dir = gaze_cfg["data_dir"]
+    images_dir = os.path.join(data_dir, gaze_cfg["images_subdir"])
+    labels_path = os.path.join(data_dir, gaze_cfg["labels_file"])
+    device = gaze_cfg["device"]
+    gaze_weights = vis_cfg["weights"]   # 시각화는 OpenVINO 모델만 사용
+    save_dir = vis_cfg["save_dir"]
+    num_to_save = vis_cfg["num_to_save"]   # 순서대로 저장할 장 수
+    num_worst = vis_cfg["num_worst"]       # 오차 큰 순으로 따로 저장할 장 수
+    arrow_scale = vis_cfg["arrow_scale"]   # 화살표 픽셀 길이 스케일
+
+    if not os.path.exists(labels_path):
+        logger.error(f"라벨 없음: {labels_path}")
         return
 
-    with open(LABELS_PATH, "r", encoding="utf-8") as f:
+    with open(labels_path, "r", encoding="utf-8") as f:
         labels: List[Dict[str, Any]] = json.load(f)
     logger.info(f"샘플 수: {len(labels)}")
 
     from src.models.gaze_openvino import GazeDetector
-    detector = GazeDetector({"weights": GAZE_WEIGHTS, "device": "CPU"})
+    detector = GazeDetector({"weights": gaze_weights, "device": device})
 
-    os.makedirs(SAVE_DIR, exist_ok=True)
+    os.makedirs(save_dir, exist_ok=True)
 
     # ── 전체 추론 + error 계산 ───────────────────────────────
     records: List[Tuple[float, Dict[str, Any], np.ndarray]] = []
     for item in labels:
-        img_path = os.path.join(IMAGES_DIR, item["image"])
+        img_path = os.path.join(images_dir, item["image"])
         frame = cv2.imread(img_path)
         if frame is None:
             continue
@@ -153,28 +172,28 @@ def main() -> None:
     logger.info(f"mean angular error = {mean_e:.2f} deg  (n={len(records)})")
 
     # ── 순서대로 저장 ────────────────────────────────────────
-    seq_dir = os.path.join(SAVE_DIR, "sequential")
+    seq_dir = os.path.join(save_dir, "sequential")
     os.makedirs(seq_dir, exist_ok=True)
-    for idx, (err, item, pred) in enumerate(records[:NUM_TO_SAVE]):
-        out = render(item, pred, err)
+    for idx, (err, item, pred) in enumerate(records[:num_to_save]):
+        out = render(item, pred, err, images_dir, arrow_scale)
         if out is not None:
             cv2.imwrite(os.path.join(seq_dir, f"cmp_{idx:04d}.jpg"), out)
 
     # ── 오차 큰 순(worst) 저장 ───────────────────────────────
-    worst_dir = os.path.join(SAVE_DIR, "worst")
+    worst_dir = os.path.join(save_dir, "worst")
     os.makedirs(worst_dir, exist_ok=True)
     for rank, (err, item, pred) in enumerate(
-        sorted(records, key=lambda r: r[0], reverse=True)[:NUM_WORST]
+        sorted(records, key=lambda r: r[0], reverse=True)[:num_worst]
     ):
-        out = render(item, pred, err)
+        out = render(item, pred, err, images_dir, arrow_scale)
         if out is not None:
             cv2.imwrite(
                 os.path.join(worst_dir, f"worst_{rank:02d}_{err:.0f}deg.jpg"), out
             )
 
     print(f"\n저장 완료:")
-    print(f"  순서대로 {min(NUM_TO_SAVE, len(records))}장 → {seq_dir}")
-    print(f"  오차 큰 순 {min(NUM_WORST, len(records))}장 → {worst_dir}")
+    print(f"  순서대로 {min(num_to_save, len(records))}장 → {seq_dir}")
+    print(f"  오차 큰 순 {min(num_worst, len(records))}장 → {worst_dir}")
     print(f"  초록=GT, 빨강=예측. 두 화살표가 가까울수록 정확.")
 
 

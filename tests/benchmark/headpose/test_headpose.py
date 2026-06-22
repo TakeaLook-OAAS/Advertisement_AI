@@ -18,17 +18,17 @@ from typing import Any, Dict, List, Tuple
 
 import cv2
 import numpy as np
+import yaml
 from loguru import logger
 
 from src.utils.types import BBoxXYXY, Track
 
+CONFIG_PATH = "configs/test.yaml"
 
-# ── 설정 ──────────────────────────────────────────────────────
-DATA_DIR = "data/benchmark/headpose"
-IMAGES_DIR = os.path.join(DATA_DIR, "AFLW2000")
-LABELS_PATH = os.path.join(DATA_DIR, "labels.json")
 
-HEADPOSE_WEIGHTS = "weights/headpose/6DRepNet_300W_LP_AFLW2000.pth"
+def load_config() -> Dict[str, Any]:
+    with open(CONFIG_PATH, "r", encoding="utf-8") as f:
+        return yaml.safe_load(f)["headpose"]
 
 
 # ── 메트릭 함수 ──────────────────────────────────────────────
@@ -61,12 +61,7 @@ def compute_mae(
     return mae_yaw, mae_pitch, mae_roll, mae_mean
 
 
-# ── 데이터 로드 ──────────────────────────────────────────────
-
-def load_labels() -> List[Dict[str, Any]]:
-    with open(LABELS_PATH, "r", encoding="utf-8") as f:
-        return json.load(f)
-
+# ── 유틸 ─────────────────────────────────────────────────────
 
 def parse_bbox(d: Dict[str, int]) -> BBoxXYXY:
     return BBoxXYXY(x1=d["x1"], y1=d["y1"], x2=d["x2"], y2=d["y2"])
@@ -75,7 +70,10 @@ def parse_bbox(d: Dict[str, int]) -> BBoxXYXY:
 # ── Headpose 벤치마크 ────────────────────────────────────────
 
 def bench_headpose(
-    weights: str, labels: List[Dict[str, Any]]
+    weights: str,
+    images_dir: str,
+    labels: List[Dict[str, Any]],
+    device: str = "cpu",
 ) -> Tuple[float, float, float, float]:
     """
     HeadPoseEstimator 모델 하나를 평가한다.
@@ -83,14 +81,14 @@ def bench_headpose(
     """
     from src.models.headpose_6drepnet import HeadPoseEstimator
 
-    cfg = {"weights": weights, "device": "cpu"}
+    cfg = {"weights": weights, "device": device}
     estimator = HeadPoseEstimator(cfg)
 
     preds: List[Tuple[float, float, float]] = []
     gts: List[Tuple[float, float, float]] = []
 
     for item in labels:
-        img_path = os.path.join(IMAGES_DIR, item["image"])
+        img_path = os.path.join(images_dir, item["image"])
         frame = cv2.imread(img_path)
         if frame is None:
             logger.warning(f"이미지 로드 실패: {img_path}")
@@ -127,16 +125,24 @@ def print_result(result: Tuple[float, float, float, float]) -> None:
 # ── 메인 ─────────────────────────────────────────────────────
 
 def main() -> None:
-    if not os.path.exists(LABELS_PATH):
-        logger.error(f"라벨 파일이 없습니다: {LABELS_PATH}")
-        logger.info("data/benchmark/headpose/labels.json 을 먼저 준비하세요.")
+    cfg = load_config()
+    data_dir = cfg["data_dir"]
+    images_dir = os.path.join(data_dir, cfg["images_subdir"])
+    labels_path = os.path.join(data_dir, cfg["labels_file"])
+    weights = cfg["weights"]
+    device = cfg["device"]
+
+    if not os.path.exists(labels_path):
+        logger.error(f"라벨 파일이 없습니다: {labels_path}")
+        logger.info(f"{labels_path} 을 먼저 준비하세요.")
         return
 
-    labels = load_labels()
-    logger.info(f"테스트 이미지 수: {len(labels)}")
+    with open(labels_path, "r", encoding="utf-8") as f:
+        labels = json.load(f)
 
+    logger.info(f"테스트 이미지 수: {len(labels)}")
     logger.info("Headpose 평가 중...")
-    print_result(bench_headpose(HEADPOSE_WEIGHTS, labels))
+    print_result(bench_headpose(weights, images_dir, labels, device))
 
 
 if __name__ == "__main__":

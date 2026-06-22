@@ -2,6 +2,8 @@
 LabelImg에서 저장한 YOLO .txt 파일들을 labels.json으로 변환한다.
 이미지와 .txt 파일이 같은 폴더에 있다고 가정한다.
 
+설정: configs/test.yaml → detection (data_dir, images_subdir, labels_file)
+
 사용법:
     python -m tests.benchmark.detection.annotations_to_json
 """
@@ -12,9 +14,14 @@ import os
 from typing import Any, Dict, List
 
 import cv2
+import yaml
 
-IMAGES_DIR = "data/benchmark/detection/images"
-OUTPUT_PATH = "data/benchmark/detection/labels.json"
+CONFIG_PATH = "configs/test.yaml"
+
+
+def load_config() -> Dict[str, Any]:
+    with open(CONFIG_PATH, "r", encoding="utf-8") as f:
+        return yaml.safe_load(f)["detection"]
 
 
 def load_classes(images_dir: str) -> Dict[int, str]:
@@ -58,14 +65,18 @@ def parse_txt(txt_path: str, img_w: int, img_h: int, classes: Dict[int, str]) ->
 
 
 def main() -> None:
-    classes = load_classes(IMAGES_DIR)
+    cfg = load_config()
+    images_dir = os.path.join(cfg["data_dir"], cfg["images_subdir"])
+    output_path = os.path.join(cfg["data_dir"], cfg["labels_file"])
+
+    classes = load_classes(images_dir)
     if not classes:
-        print(f"[ERROR] classes.txt 없음: {IMAGES_DIR}")
+        print(f"[ERROR] classes.txt 없음: {images_dir}")
         return
 
     image_exts = {".jpg", ".jpeg", ".png"}
     image_files = sorted(
-        f for f in os.listdir(IMAGES_DIR)
+        f for f in os.listdir(images_dir)
         if os.path.splitext(f)[1].lower() in image_exts
     )
 
@@ -74,13 +85,13 @@ def main() -> None:
 
     for img_file in image_files:
         txt_file = os.path.splitext(img_file)[0] + ".txt"
-        txt_path = os.path.join(IMAGES_DIR, txt_file)
+        txt_path = os.path.join(images_dir, txt_file)
 
         if not os.path.exists(txt_path):
             skipped += 1
             continue
 
-        img = cv2.imread(os.path.join(IMAGES_DIR, img_file))
+        img = cv2.imread(os.path.join(images_dir, img_file))
         if img is None:
             continue
         img_h, img_w = img.shape[:2]
@@ -90,11 +101,11 @@ def main() -> None:
         labels.append(entry)
         print(f"  {img_file} → persons: {len(parsed['persons'])}, faces: {len(parsed['faces'])}")
 
-    os.makedirs(os.path.dirname(OUTPUT_PATH), exist_ok=True)
-    with open(OUTPUT_PATH, "w", encoding="utf-8") as f:
+    os.makedirs(os.path.dirname(output_path), exist_ok=True)
+    with open(output_path, "w", encoding="utf-8") as f:
         json.dump(labels, f, ensure_ascii=False, indent=2)
 
-    print(f"\n총 {len(labels)}장 변환 → {OUTPUT_PATH}")
+    print(f"\n총 {len(labels)}장 변환 → {output_path}")
     if skipped:
         print(f"(라벨 없는 이미지 {skipped}장 제외)")
     print("이제 실행 가능: python -m tests.benchmark.test_detection")

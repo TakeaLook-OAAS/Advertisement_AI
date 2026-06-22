@@ -18,21 +18,17 @@ from typing import Any, Dict, List, Tuple
 
 import cv2
 import numpy as np
+import yaml
 from loguru import logger
 
 from src.utils.types import BBoxXYXY, Track
 
+CONFIG_PATH = "configs/test.yaml"
 
-# ── 설정 ──────────────────────────────────────────────────────
-DATA_DIR = "data/benchmark/detection"
-IMAGES_DIR = os.path.join(DATA_DIR, "images")
-LABELS_PATH = os.path.join(DATA_DIR, "labels.json")
 
-IOU_THRESH = 0.5
-
-YOLO_WEIGHTS = "weights/yolo/yolov8n.pt"
-FACE_WEIGHTS = "weights/face_detection/face-detection-adas-0001.xml"
-EYE_WEIGHTS  = "weights/eye_detection/facial-landmarks-35-adas-0002.xml"
+def load_config() -> Dict[str, Any]:
+    with open(CONFIG_PATH, "r", encoding="utf-8") as f:
+        return yaml.safe_load(f)["detection"]
 
 
 # ── 메트릭 함수 ──────────────────────────────────────────────
@@ -57,7 +53,7 @@ def compute_iou(pred: BBoxXYXY, gt: BBoxXYXY) -> float:
 def match_and_score(
     preds: List[BBoxXYXY],
     gts: List[BBoxXYXY],
-    iou_thresh: float = IOU_THRESH,
+    iou_thresh: float,
 ) -> Tuple[int, int, int, List[float]]:
     """
     예측 bbox와 정답 bbox를 greedy IoU 매칭한다.
@@ -109,12 +105,7 @@ def compute_metrics(tp: int, fp: int, fn: int) -> Tuple[float, float, float]:
     return precision, recall, f1
 
 
-# ── 데이터 로드 ──────────────────────────────────────────────
-
-def load_labels() -> List[Dict[str, Any]]:
-    with open(LABELS_PATH, "r", encoding="utf-8") as f:
-        return json.load(f)
-
+# ── 유틸 ─────────────────────────────────────────────────────
 
 def parse_bbox(d: Dict[str, int]) -> BBoxXYXY:
     return BBoxXYXY(x1=d["x1"], y1=d["y1"], x2=d["x2"], y2=d["y2"])
@@ -126,18 +117,19 @@ Result = Tuple[float, float, float, float]
 
 # ── YOLO 벤치마크 ────────────────────────────────────────────
 
-def bench_yolo(weights: str, labels: List[Dict[str, Any]]) -> Result:
+def bench_yolo(
+    images_dir: str, labels: List[Dict[str, Any]], yolo_cfg: Dict[str, Any], iou_thresh: float
+) -> Result:
     """YOLO 모델 하나를 평가한다. Returns: (precision, recall, f1, avg_iou)"""
     from src.models.yolo_detector import YoloDetector
 
-    cfg = {"model": weights, "device": "cpu", "conf": 0.5, "classes": [0]}
-    detector = YoloDetector(cfg)
+    detector = YoloDetector(yolo_cfg)
 
     total_tp, total_fp, total_fn = 0, 0, 0
     all_ious: List[float] = []
 
     for item in labels:
-        img_path = os.path.join(IMAGES_DIR, item["image"])
+        img_path = os.path.join(images_dir, item["image"])
         frame = cv2.imread(img_path)
         if frame is None:
             logger.warning(f"이미지 로드 실패: {img_path}")
@@ -147,7 +139,7 @@ def bench_yolo(weights: str, labels: List[Dict[str, Any]]) -> Result:
         pred_boxes = [d.bbox for d in dets]
         gt_boxes = [parse_bbox(b) for b in item.get("persons", [])]
 
-        tp, fp, fn, matched_ious = match_and_score(pred_boxes, gt_boxes)
+        tp, fp, fn, matched_ious = match_and_score(pred_boxes, gt_boxes, iou_thresh)
         total_tp += tp
         total_fp += fp
         total_fn += fn
@@ -160,7 +152,9 @@ def bench_yolo(weights: str, labels: List[Dict[str, Any]]) -> Result:
 
 # ── Face 벤치마크 ────────────────────────────────────────────
 
-def bench_face(weights: str, labels: List[Dict[str, Any]]) -> Result:
+def bench_face(
+    images_dir: str, labels: List[Dict[str, Any]], face_cfg: Dict[str, Any], iou_thresh: float
+) -> Result:
     """FaceDetector 모델 하나를 평가한다. Returns: (precision, recall, f1, avg_iou)
 
     주의: 정답 person bbox를 crop 입력으로 주는 '조건부' 평가다.
@@ -168,14 +162,13 @@ def bench_face(weights: str, labels: List[Dict[str, Any]]) -> Result:
     """
     from src.models.face_openvino import FaceDetector
 
-    cfg = {"weights": weights, "device": "CPU", "conf_thresh": 0.5}
-    detector = FaceDetector(cfg)
+    detector = FaceDetector(face_cfg)
 
     total_tp, total_fp, total_fn = 0, 0, 0
     all_ious: List[float] = []
 
     for item in labels:
-        img_path = os.path.join(IMAGES_DIR, item["image"])
+        img_path = os.path.join(images_dir, item["image"])
         frame = cv2.imread(img_path)
         if frame is None:
             continue
@@ -192,7 +185,7 @@ def bench_face(weights: str, labels: List[Dict[str, Any]]) -> Result:
             if track.crop_bbox is not None:
                 pred_faces.append(track.crop_bbox)
 
-        tp, fp, fn, matched_ious = match_and_score(pred_faces, gt_faces)
+        tp, fp, fn, matched_ious = match_and_score(pred_faces, gt_faces, iou_thresh)
         total_tp += tp
         total_fp += fp
         total_fn += fn
@@ -205,7 +198,9 @@ def bench_face(weights: str, labels: List[Dict[str, Any]]) -> Result:
 
 # ── Eye 벤치마크 ─────────────────────────────────────────────
 
-def bench_eye(weights: str, labels: List[Dict[str, Any]]) -> Result:
+def bench_eye(
+    images_dir: str, labels: List[Dict[str, Any]], eye_cfg: Dict[str, Any], iou_thresh: float
+) -> Result:
     """EyeDetector 모델 하나를 평가한다. Returns: (precision, recall, f1, avg_iou)
 
     주의: 눈은 객체가 작아 IoU가 구조적으로 낮게 나온다. IOU_THRESH=0.5는
@@ -213,14 +208,13 @@ def bench_eye(weights: str, labels: List[Dict[str, Any]]) -> Result:
     """
     from src.models.eye_openvino import EyeDetector
 
-    cfg = {"weights": weights, "device": "CPU"}
-    detector = EyeDetector(cfg)
+    detector = EyeDetector(eye_cfg)
 
     total_tp, total_fp, total_fn = 0, 0, 0
     all_ious: List[float] = []
 
     for item in labels:
-        img_path = os.path.join(IMAGES_DIR, item["image"])
+        img_path = os.path.join(images_dir, item["image"])
         frame = cv2.imread(img_path)
         if frame is None:
             continue
@@ -236,7 +230,7 @@ def bench_eye(weights: str, labels: List[Dict[str, Any]]) -> Result:
             # left eye
             if track.left_eye is not None:
                 iou_l = compute_iou(track.left_eye, gt_left)
-                if iou_l >= IOU_THRESH:
+                if iou_l >= iou_thresh:
                     total_tp += 1
                     all_ious.append(iou_l)
                 else:
@@ -247,7 +241,7 @@ def bench_eye(weights: str, labels: List[Dict[str, Any]]) -> Result:
             # right eye
             if track.right_eye is not None:
                 iou_r = compute_iou(track.right_eye, gt_right)
-                if iou_r >= IOU_THRESH:
+                if iou_r >= iou_thresh:
                     total_tp += 1
                     all_ious.append(iou_r)
                 else:
@@ -272,22 +266,34 @@ def print_result(title: str, result: Result) -> None:
 # ── 메인 ─────────────────────────────────────────────────────
 
 def main() -> None:
-    if not os.path.exists(LABELS_PATH):
-        logger.error(f"라벨 파일이 없습니다: {LABELS_PATH}")
-        logger.info("data/benchmark/detection/labels.json 을 먼저 준비하세요.")
+    cfg = load_config()
+    data_dir = cfg["data_dir"]
+    images_dir = os.path.join(data_dir, cfg["images_subdir"])
+    labels_path = os.path.join(data_dir, cfg["labels_file"])
+    iou_thresh = cfg["iou_thresh"]
+
+    yolo_cfg = cfg["yolo"]
+    face_cfg = cfg["face"]
+    eye_cfg = cfg["eye"]
+
+    if not os.path.exists(labels_path):
+        logger.error(f"라벨 파일이 없습니다: {labels_path}")
+        logger.info(f"{labels_path} 을 먼저 준비하세요.")
         return
 
-    labels = load_labels()
+    with open(labels_path, "r", encoding="utf-8") as f:
+        labels = json.load(f)
+
     logger.info(f"테스트 이미지 수: {len(labels)}")
 
     logger.info("YOLO 평가 중...")
-    print_result("YOLO Person Detection", bench_yolo(YOLO_WEIGHTS, labels))
+    print_result("YOLO Person Detection", bench_yolo(images_dir, labels, yolo_cfg, iou_thresh))
 
     logger.info("Face 평가 중...")
-    print_result("Face Detection (head bbox 있는것만)", bench_face(FACE_WEIGHTS, labels))
+    print_result("Face Detection (head bbox 있는것만)", bench_face(images_dir, labels, face_cfg, iou_thresh))
 
     logger.info("Eye 평가 중...")
-    print_result("Eye Detection", bench_eye(EYE_WEIGHTS, labels))
+    print_result("Eye Detection", bench_eye(images_dir, labels, eye_cfg, iou_thresh))
 
 
 if __name__ == "__main__":
