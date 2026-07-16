@@ -212,6 +212,10 @@ class PersonState:
     look_intervals: List[LookInterval] = field(default_factory=list)
     current_look_start_ms: Optional[int] = None   # 보기 시작한 시점 (None이면 안 보는 중)
 
+    # ── 판정 보류(gaze/look_result가 None인 구간) ──
+    pending_since_ms: Optional[int] = None        # 판정 불가 구간이 시작된 시점 (None이면 보류 중 아님)
+    pending_start_center: Tuple[int, int] = (0, 0)  # 보류 시작 시점의 bbox center
+
     # ── 인구통계 ──
     age_group: Optional[str] = None
     gender: Optional[str] = None
