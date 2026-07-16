@@ -23,14 +23,14 @@ class FaceDetector:
     def detect(self, frame: np.ndarray, track: Track) -> Track:
         """
         person bbox 안에서 얼굴을 찾아 track.crop_bbox를 갱신합니다.
-        얼굴을 찾지 못하면 crop_bbox를 person bbox(원래 값) 그대로 유지합니다.
+        얼굴을 찾지 못하면 crop_bbox는 기본값 None으로 남습니다.
         """
         bbox = track.bbox
 
         h = bbox.h()
         w = bbox.w()
         if h < self.min_face_size or w < self.min_face_size:
-            return track  # crop이 너무 작으면 그대로 반환
+            return track  # person bbox가 너무 작으면 crop_bbox=None으로 반환
 
         person_crop = frame[bbox.y1:bbox.y2, bbox.x1:bbox.x2]
 
@@ -62,7 +62,7 @@ class FaceDetector:
                 best_box = (fx1, fy1, fx2, fy2)
 
         if best_box is None:
-            return track  # 얼굴 못 찾음 → crop_bbox 유지
+            return track  # 얼굴 못 찾음 → crop_bbox=None으로 반환
 
         # 5) person_crop 좌표 → 원본 프레임 좌표로 변환 (프레임 범위로)
         fh, fw = frame.shape[:2]
