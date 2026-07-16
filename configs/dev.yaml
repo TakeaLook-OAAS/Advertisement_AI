@@ -1,11 +1,11 @@
 # Dev overrides
 #device_id: "cam_01"
 device_id: "dddddddd-0000-0000-0000-000000000001"
-source: "data/samples/test14.mp4"
+source: "data/samples/20260716_165147.mp4"
 
 display:
-  output_video: true
-  output_video_path: "data/output/output_test14.mp4"
+  output_video: false
+  output_video_path: "data/output/output_20260716_165147(1).mp4"
   font_scale: 0.7
   thickness: 2
   draw_bbox: true
@@ -27,8 +27,8 @@ models:
   tracker:
     iou_threshold: 0.3
     max_lost: 30              # 이 프레임 수만큼 미매칭이면 track 삭제
-    img_w: 3840               # 입력 영상 해상도 (ByteTrack 내부 좌표 스케일링용)
-    img_h: 2160
+    img_w: 1920               # 입력 영상 해상도 (ByteTrack 내부 좌표 스케일링용)
+    img_h: 1080
   face:
     device: "CPU"
     weights: "weights/face_detection/face-detection-adas-0001.xml"
@@ -61,7 +61,15 @@ pipeline:
 
 logic:
   attention:
-    threshold_deg: 30.0
+    threshold_deg: 30.0        # distance_adaptive 비활성/미설정 시 fallback
+    distance_adaptive:
+      enabled: false            # 캘리브레이션 값 채운 뒤 true로
+      ad_width_m: 1.0           # TODO: 실제 광고판 폭(m)으로 교체
+      ad_height_m: 1.0          # TODO: 실제 광고판 높이(m)로 교체
+      ref_distance_m: 1.0       # TODO: 기준 촬영 거리(m)
+      ref_face_height_px: 290.0  # TODO: 그 거리에서 측정한 얼굴 crop 평균 높이(px)
+      min_threshold_deg: 5.0
+      max_threshold_deg: 45.0
 
 output:
   json_dir: "data/output/segments/"
