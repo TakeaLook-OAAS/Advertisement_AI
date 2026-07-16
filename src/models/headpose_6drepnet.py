@@ -13,7 +13,7 @@ class HeadPoseEstimator:
 
     sixdrepnet 패키지를 사용하여 머리 자세(yaw/pitch/roll)를 추정합니다.
     person bbox에서 얼굴을 찾아 각도를 반환하며,
-    얼굴을 찾지 못하거나 crop이 너무 작으면 HeadPose(0, 0, 0)을 반환합니다.
+    얼굴을 찾지 못하거나 crop이 너무 작으면 headpose를 None으로 둡니다.
     """
 
     def __init__(self, cfg: Dict[str, Any]):
@@ -27,19 +27,21 @@ class HeadPoseEstimator:
         logger.info(f"Loading 6DRepNet model (gpu_id={gpu_id}, weights='{weights or 'auto'}')")
         self.model = SixDRepNet(gpu_id=gpu_id, dict_path=weights)   # 가중치 다운로드
 
-    _ZERO = HeadPose(yaw=0.0, pitch=0.0, roll=0.0)
-
     def infer(self, frame, track: Track) -> Track:
         """
         track.headpose를 채워서 반환합니다.
-        실패 시 HeadPose(0, 0, 0)을 설정합니다.
+        실패 시 headpose를 None으로 둡니다.
         """
-        crop_bbox = track.crop_bbox if track.crop_bbox is not None else track.bbox
+        if track.crop_bbox is None:
+            track.headpose = None
+            return track
+
+        crop_bbox = track.crop_bbox
         crop_h = crop_bbox.h()
         crop_w = crop_bbox.w()
 
         if crop_h < self.min_face_size or crop_w < self.min_face_size:
-            track.headpose = self._ZERO
+            track.headpose = None
             return track
 
         crop = frame[crop_bbox.y1:crop_bbox.y2, crop_bbox.x1:crop_bbox.x2]
@@ -48,17 +50,17 @@ class HeadPoseEstimator:
             results = self.model.predict(crop)      # 6DRepNet에 crop 이미지 넣기
         except Exception as e:
             logger.debug(f"6DRepNet predict error: {e}")
-            track.headpose = self._ZERO
+            track.headpose = None
             return track
 
         if results is None or len(results) == 0:    # 얼굴 못 찾음
-            track.headpose = self._ZERO
+            track.headpose = None
             return track
 
         # sixdrepnet predict() 반환: (pitch_array, yaw_array, roll_array)
         # 각각 numpy array([value], dtype=float32)
         if len(results) != 3:
-            track.headpose = self._ZERO
+            track.headpose = None
             return track
 
         pitch = float(results[0])

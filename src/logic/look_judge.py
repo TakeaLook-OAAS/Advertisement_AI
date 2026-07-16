@@ -41,9 +41,9 @@ class LookJudge:
         )
 
     def judge_track(self, track: Track) -> Track:
-        """track.gaze로 판정하여 track.look_result에 채웁니다."""
+        """track.gaze로 판정하여 track.look_result에 채웁니다. gaze가 없으면(측정 실패) None으로 둡니다."""
         if track.gaze is None:
-            track.look_result = LookResult(is_looking=False, score=0.0, angle_deg=180.0)
+            track.look_result = None
         else:
             track.look_result = self.judge(track.gaze)
         return track

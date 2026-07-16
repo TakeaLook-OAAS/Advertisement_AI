@@ -84,9 +84,39 @@ class StatusTracker:
             # 3) bbox center 기록
             bbox_center = track.bbox.center()
 
-            # 4) 시선 변화 감지
-            now_looking = bool(track.look_result and track.look_result.is_looking)
+            # 4) 시선 판정이 이번 프레임에 없으면(gaze/headpose 실패 등) 보류만 표시하고 넘어감
+            if track.look_result is None:
+                if state.pending_since_ms is None:
+                    state.pending_since_ms = meta.ts_ms
+                    state.pending_start_center = bbox_center
+                continue
 
+            now_looking = track.look_result.is_looking
+
+            if state.pending_since_ms is not None:
+                # 보류 중이던 구간을 지금 확정된 값으로 소급 판정
+                # 보류 시작 전/후가 둘 다 True일 때만 그 구간 내내 본 것으로 간주, 그 외엔 안 본 것으로 처리
+                prior_looking = state.is_looking
+                if not (prior_looking and now_looking):
+                    if prior_looking and state.current_look_start_ms is not None:
+                        state.look_intervals.append(
+                            LookInterval(
+                                start_ms=state.current_look_start_ms,
+                                end_ms=state.pending_since_ms,
+                                start_center=getattr(state, '_look_start_center', (0, 0)),
+                                end_center=state.pending_start_center,
+                            )
+                        )
+                        state.current_look_start_ms = None
+                    if now_looking:
+                        state.current_look_start_ms = meta.ts_ms
+                        state._look_start_center = bbox_center  # type: ignore[attr-defined]
+
+                state.pending_since_ms = None
+                state.is_looking = now_looking
+                continue
+
+            # 5) 시선 변화 감지 (보류 없이 바로 판정되는 평소 케이스)
             if now_looking and not state.is_looking:
                 # False → True: 보기 시작
                 state.current_look_start_ms = meta.ts_ms
@@ -107,7 +137,7 @@ class StatusTracker:
 
             state.is_looking = now_looking
 
-        # 5) 사라진 사람 처리
+        # 6) 사라진 사람 처리
         vanished_ids = []
         for tid in self._states:
             if tid not in active_ids and self._states[tid].is_active:
@@ -117,15 +147,24 @@ class StatusTracker:
             state = self._states[tid]
             end_ms = state.last_seen_ms
 
+            # 판정 보류 중에 사라졌으면 → 보류 시작 시점에서 끊음 (미해결 구간은 안 본 것으로 처리)
+            if state.pending_since_ms is not None:
+                close_ms = state.pending_since_ms
+                close_center = state.pending_start_center
+                state.pending_since_ms = None
+            else:
+                close_ms = end_ms
+                close_center = getattr(state, '_look_start_center', (0, 0))
+
             # 보다가 사라짐 → 시선 구간 강제 종료 (마지막 bbox center 사용)
             if state.is_looking and state.current_look_start_ms is not None:
                 last_center = getattr(state, '_look_start_center', (0, 0))
                 state.look_intervals.append(
                     LookInterval(
                         start_ms=state.current_look_start_ms,
-                        end_ms=end_ms,
+                        end_ms=close_ms,
                         start_center=last_center,
-                        end_center=last_center,
+                        end_center=close_center,
                     )
                 )
                 state.current_look_start_ms = None
@@ -151,15 +190,25 @@ class StatusTracker:
         for tid in sorted(self._states.keys()):
             state = self._states[tid]
 
-            # 열린 시선 구간 → boundary에서 강제 종료
+            # 판정 보류 중에 세그먼트가 끝났으면 → 보류 시작 시점에서 끊음 (미해결 구간은 안 본 것으로 처리)
+            if state.pending_since_ms is not None:
+                close_ms = state.pending_since_ms
+                close_center = state.pending_start_center
+                state.pending_since_ms = None
+                state.is_looking = False
+            else:
+                close_ms = boundary_ms
+                close_center = getattr(state, '_look_start_center', (0, 0))
+
+            # 열린 시선 구간 → boundary(또는 보류 시작 시점)에서 강제 종료
             if state.current_look_start_ms is not None:
                 last_center = getattr(state, '_look_start_center', (0, 0))
                 state.look_intervals.append(
                     LookInterval(
                         start_ms=state.current_look_start_ms,
-                        end_ms=boundary_ms,
+                        end_ms=close_ms,
                         start_center=last_center,
-                        end_center=last_center,
+                        end_center=close_center,
                     )
                 )
                 state.current_look_start_ms = None
@@ -220,14 +269,24 @@ class StatusTracker:
             if not state.is_active:
                 continue
             end_ms = state.last_seen_ms
+
+            # 판정 보류 중에 영상이 끝났으면 → 보류 시작 시점에서 끊음 (미해결 구간은 안 본 것으로 처리)
+            if state.pending_since_ms is not None:
+                close_ms = state.pending_since_ms
+                close_center = state.pending_start_center
+                state.pending_since_ms = None
+            else:
+                close_ms = end_ms
+                close_center = getattr(state, '_look_start_center', (0, 0))
+
             if state.current_look_start_ms is not None:
                 last_center = getattr(state, '_look_start_center', (0, 0))
                 state.look_intervals.append(
                     LookInterval(
                         start_ms=state.current_look_start_ms,
-                        end_ms=end_ms,
+                        end_ms=close_ms,
                         start_center=last_center,
-                        end_center=last_center,
+                        end_center=close_center,
                     )
                 )
                 state.current_look_start_ms = None

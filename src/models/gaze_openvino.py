@@ -10,8 +10,6 @@ from src.utils.types import Track, Gaze
 
 
 class GazeDetector:
-    _ZERO = Gaze(x=0.0, y=0.0, z=0.0)
-
     def __init__(self, cfg: Dict[str, Any]):
         device_str = cfg.get("device", "CPU")
         weights = cfg.get("weights", "weights/gaze/gaze-estimation-adas-0002.xml")
@@ -26,15 +24,19 @@ class GazeDetector:
         """
         track.left_eye, track.right_eye, track.headpose를 사용하여
         gaze 벡터를 추정하고 track.gaze에 설정합니다.
-        headpose가 zero이면 추론을 건너뜁니다.
+        headpose 또는 eye crop이 없으면 추론을 건너뜁니다.
         """
         hp = track.headpose
-        if hp is None or (hp.yaw == 0.0 and hp.pitch == 0.0 and hp.roll == 0.0):
-            track.gaze = self._ZERO
+        if hp is None:
+            track.gaze = None
             return track
 
-        left_eye = track.left_eye if track.left_eye is not None else track.bbox
-        right_eye = track.right_eye if track.right_eye is not None else track.bbox
+        if track.left_eye is None or track.right_eye is None:
+            track.gaze = None
+            return track
+
+        left_eye = track.left_eye
+        right_eye = track.right_eye
         left_crop = frame[left_eye.y1:left_eye.y2, left_eye.x1:left_eye.x2]
         right_crop = frame[right_eye.y1:right_eye.y2, right_eye.x1:right_eye.x2]
 
