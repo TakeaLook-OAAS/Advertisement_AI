@@ -178,6 +178,9 @@ class LookResult:
     is_looking: bool
     score: float
     angle_deg: float
+    threshold_deg_used: float = 0.0   # 실제 적용된 threshold. 거리 적응형이면 수평(가로) threshold
+    threshold_deg_vertical_used: Optional[float] = None  # 거리 적응형일 때 수직(세로) threshold
+    distance_m: Optional[float] = None  # 거리 적응형 threshold 계산에 쓰인 추정 거리(m)
 
 
 
