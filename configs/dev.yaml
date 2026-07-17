@@ -63,13 +63,17 @@ logic:
   attention:
     threshold_deg: 30.0        # distance_adaptive 비활성/미설정 시 fallback
     distance_adaptive:
-      enabled: false            # 캘리브레이션 값 채운 뒤 true로
+      enabled: true            # 캘리브레이션 값 채운 뒤 true로
       ad_width_m: 1.0           # TODO: 실제 광고판 폭(m)으로 교체
       ad_height_m: 1.0          # TODO: 실제 광고판 높이(m)로 교체
       ref_distance_m: 1.0       # TODO: 기준 촬영 거리(m)
       ref_face_height_px: 290.0  # TODO: 그 거리에서 측정한 얼굴 crop 평균 높이(px)
       min_threshold_deg: 5.0
       max_threshold_deg: 45.0
+    hysteresis:
+      enabled: true
+      enter_frames: 3   # OFF->ON: raw True가 이 프레임 수만큼 연속돼야 확정 (30fps 기준 ~100ms)
+      exit_frames: 8    # ON->OFF: raw False가 이 프레임 수만큼 연속돼야 확정 (30fps 기준 ~270ms)
 
 output:
   json_dir: "data/output/segments/"

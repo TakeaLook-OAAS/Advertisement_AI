@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 import math
+from dataclasses import replace
 from typing import Any, Dict, List, Optional
 from loguru import logger
 from src.utils.types import Gaze, LookResult, Track
@@ -32,6 +33,13 @@ class LookJudge:
         self.ref_face_height_px = float(da_cfg.get("ref_face_height_px", 30.0))
         self.min_threshold_deg = float(da_cfg.get("min_threshold_deg", 5.0))
         self.max_threshold_deg = float(da_cfg.get("max_threshold_deg", 45.0))
+
+        # 히스테리시스: 프레임 단위 raw 판정의 노이즈를 완충 (진입/이탈에 각각 다른 연속 프레임 수 요구)
+        hyst_cfg = cfg.get("hysteresis", {})
+        self.hysteresis_enabled = bool(hyst_cfg.get("enabled", True))
+        self.enter_frames = int(hyst_cfg.get("enter_frames", 3))
+        self.exit_frames = int(hyst_cfg.get("exit_frames", 8))
+        self._hysteresis_state: Dict[int, Dict[str, Any]] = {}  # track_id -> {smoothed, pending, streak}
 
     def _estimate_distance_m(self, face_height_px: float) -> float:
         """얼굴 crop 높이(px)로 거리(m)를 추정. 1점 보정(ref_distance_m/ref_face_height_px) 기반 역비례."""
@@ -96,15 +104,65 @@ class LookJudge:
             threshold_deg_used=self.threshold_deg,
         )
 
+    def _apply_hysteresis(self, track_id: int, raw_is_looking: bool) -> bool:
+        """
+        raw 판정을 track_id별 상태로 완충.
+        상태 전환에는 raw가 enter_frames(진입)/exit_frames(이탈)번 연속돼야 함.
+        """
+        state = self._hysteresis_state.setdefault(
+            track_id, {"smoothed": raw_is_looking, "pending": None, "streak": 0}
+        )
+
+        if raw_is_looking == state["smoothed"]:
+            state["pending"] = None
+            state["streak"] = 0
+            return state["smoothed"]
+
+        if state["pending"] == raw_is_looking:
+            state["streak"] += 1
+        else:
+            state["pending"] = raw_is_looking
+            state["streak"] = 1
+
+        needed = self.enter_frames if raw_is_looking else self.exit_frames
+        if state["streak"] >= needed:
+            state["smoothed"] = raw_is_looking
+            state["pending"] = None
+            state["streak"] = 0
+
+        return state["smoothed"]
+
     def judge_track(self, track: Track) -> Track:
         """track.gaze로 판정하여 track.look_result에 채웁니다. gaze가 없으면(측정 실패) None으로 둡니다."""
         if track.gaze is None:
             track.look_result = None
-        else:
-            face_height_px = track.crop_bbox.h() if track.crop_bbox is not None else None
-            track.look_result = self.judge(track.gaze, face_height_px)
+            return track
+
+        face_height_px = track.crop_bbox.h() if track.crop_bbox is not None else None
+        result = self.judge(track.gaze, face_height_px)
+
+        if self.hysteresis_enabled:
+            smoothed = self._apply_hysteresis(track.track_id, result.is_looking)
+            if smoothed != result.is_looking:
+                logger.debug(
+                    f"[LookJudge] track_id={track.track_id} hysteresis holding "
+                    f"raw={result.is_looking} -> smoothed={smoothed}"
+                )
+                result = replace(result, is_looking=smoothed, raw_is_looking=result.is_looking)
+            else:
+                result = replace(result, raw_is_looking=result.is_looking)
+
+        track.look_result = result
         return track
 
     def judge_batch(self, tracks: List[Track]) -> List[Track]:
         """각 track.gaze로 판정하여 track.look_result에 채웁니다."""
-        return [self.judge_track(t) for t in tracks]
+        result = [self.judge_track(t) for t in tracks]
+
+        if self.hysteresis_enabled:
+            active_ids = {t.track_id for t in tracks}
+            for stale_id in list(self._hysteresis_state.keys()):
+                if stale_id not in active_ids:
+                    del self._hysteresis_state[stale_id]
+
+        return result
