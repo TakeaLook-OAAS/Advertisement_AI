@@ -34,14 +34,19 @@ detection:
   iou_thresh: 0.5                            # TP 판정 IoU 기준
   yolo:
     weights: "weights/yolo/yolov8n.pt"
-    #device: "cpu"
-    device: "cuda"
+    device: "cpu"
+    #device: "cuda"
     conf: 0.5                               # YOLO confidence threshold
     classes: [0]                            # 0 = person (COCO)
   face:
-    weights: "weights/face_detection/face-detection-adas-0001.xml"
-    device: "CPU"
     conf_thresh: 0.5
+    weights:
+      openvino:
+        path: "weights/face_detection/face-detection-adas-0001.xml"
+        device: "CPU"
+      yolov8:
+        path: "weights/face_detection/yolov8n-face-lindevs.pt"
+        device: "cpu"
   eye:
     weights: "weights/eye_detection/facial-landmarks-35-adas-0002.xml"
     device: "CPU"
@@ -102,6 +107,13 @@ visualize:
 
   detection_face:
     out_dir: "data/benchmark/detection/face_check"  # Face 시각화 저장 폴더
+    weights:
+      #openvino:
+        #path: "weights/face_detection/face-detection-adas-0001.xml"
+        #device: "CPU"
+      yolov8:
+        path: "weights/face_detection/yolov8n-face-lindevs.pt"
+        device: "cpu"
 
   gaze:
     weights:

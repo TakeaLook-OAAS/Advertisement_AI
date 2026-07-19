@@ -14,12 +14,12 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Dict, List
 from src.models.bytetrack_tracker import OfficialByteTrackAdapter
-from src.models.face_openvino import FaceDetector
+from src.models.openvino.face_openvino import FaceDetector
 from src.models.yolo_detector import YoloDetector
 from src.models.mivolo_attr import MiVOLOAttr
 from src.models.headpose_6drepnet import HeadPoseEstimator
-from src.models.eye_openvino import EyeDetector
-from src.models.gaze_openvino import GazeDetector
+from src.models.openvino.eye_openvino import EyeDetector
+from src.models.openvino.gaze_openvino import GazeDetector
 from src.logic.stay import StayTracker
 from src.logic.look_judge import LookJudge
 from src.utils.types import Det, FrameMeta, Track

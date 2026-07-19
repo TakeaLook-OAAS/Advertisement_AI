@@ -137,7 +137,7 @@ def main() -> None:
     if backend == "pytorch":
         from src.models.gaze.gaze_pytorch import GazeDetector
     else:
-        from src.models.gaze_openvino import GazeDetector
+        from src.models.openvino.gaze_openvino import GazeDetector
 
     detector = GazeDetector({"weights": weights, "device": device})
     os.makedirs(save_dir, exist_ok=True)

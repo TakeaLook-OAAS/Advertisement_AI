@@ -3,6 +3,7 @@ Face 검출 결과 시각화: 벤치마크(bench_face)와 동일한 조건으로
 정답/예측 박스를 이미지에 그려 저장한다. 어떤 얼굴을 왜 놓쳤는지 눈으로 확인하는 용도.
 
 설정: configs/test.yaml → detection, visualize.detection_face
+백엔드 선택: visualize.detection_face.weights 아래에서 사용할 모델 섹션만 주석 해제
 
 사용법:
     python -m tests.benchmark.detection.visualize_face
@@ -89,22 +90,29 @@ def match_preds_to_gts(preds: List[BBoxXYXY], gts: List[BBoxXYXY], iou_thresh: f
 
 
 def main() -> None:
-    from src.models.face_openvino import FaceDetector
-
     det_cfg, vis_cfg = load_config()
+
+    backend = next(iter(vis_cfg["weights"]))
     images_dir = os.path.join(det_cfg["data_dir"], det_cfg["images_subdir"])
     labels_path = os.path.join(det_cfg["data_dir"], det_cfg["labels_file"])
     iou_thresh = det_cfg["iou_thresh"]
-    face_cfg = det_cfg["face"]
+    conf_thresh = det_cfg["face"].get("conf_thresh", 0.5)
+    weights = vis_cfg["weights"][backend]["path"]
+    device = vis_cfg["weights"][backend]["device"]
     out_dir = vis_cfg["out_dir"]
+
+    if backend == "yolov8":
+        from src.models.face_yolov8 import FaceDetector
+    else:
+        from src.models.openvino.face_openvino import FaceDetector
 
     with open(labels_path, "r", encoding="utf-8") as f:
         labels = json.load(f)
 
     os.makedirs(out_dir, exist_ok=True)
-    logger.info(f"시각화 대상 이미지 수: {len(labels)}")
+    logger.info(f"시각화 대상 이미지 수: {len(labels)}  |  모델: {backend}  |  device: {device}")
 
-    detector = FaceDetector(face_cfg)
+    detector = FaceDetector({"weights": weights, "device": device, "conf_thresh": conf_thresh})
     n_tp, n_fp, n_fn = 0, 0, 0
 
     for item in labels:

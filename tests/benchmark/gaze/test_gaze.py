@@ -90,7 +90,7 @@ def bench_gaze(
     if backend == "pytorch":
         from src.models.gaze.gaze_pytorch import GazeDetector
     else:
-        from src.models.gaze_openvino import GazeDetector
+        from src.models.openvino.gaze_openvino import GazeDetector
 
     cfg = {"weights": weights, "device": device}
     detector = GazeDetector(cfg)

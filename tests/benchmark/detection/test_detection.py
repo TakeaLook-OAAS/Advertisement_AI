@@ -153,15 +153,26 @@ def bench_yolo(
 # ── Face 벤치마크 ────────────────────────────────────────────
 
 def bench_face(
-    images_dir: str, labels: List[Dict[str, Any]], face_cfg: Dict[str, Any], iou_thresh: float
+    backend: str,
+    weights: str,
+    device: str,
+    images_dir: str,
+    labels: List[Dict[str, Any]],
+    iou_thresh: float,
+    conf_thresh: float = 0.5,
 ) -> Result:
-    """FaceDetector 모델 하나를 평가한다. Returns: (precision, recall, f1, avg_iou)
+    """FaceDetector 모델 하나를 평가한다. backend: "openvino" | "yolov8"
+    Returns: (precision, recall, f1, avg_iou)
 
     주의: 정답 person bbox를 crop 입력으로 주는 '조건부' 평가다.
     (person 검출이 완벽하다는 전제하의 얼굴 검출 성능)
     """
-    from src.models.face_openvino import FaceDetector
+    if backend == "yolov8":
+        from src.models.face_yolov8 import FaceDetector
+    else:
+        from src.models.openvino.face_openvino import FaceDetector
 
+    face_cfg = {"weights": weights, "device": device, "conf_thresh": conf_thresh}
     detector = FaceDetector(face_cfg)
 
     total_tp, total_fp, total_fn = 0, 0, 0
@@ -206,7 +217,7 @@ def bench_eye(
     주의: 눈은 객체가 작아 IoU가 구조적으로 낮게 나온다. IOU_THRESH=0.5는
     눈 검출에는 다소 가혹할 수 있다.
     """
-    from src.models.eye_openvino import EyeDetector
+    from src.models.openvino.eye_openvino import EyeDetector
 
     detector = EyeDetector(eye_cfg)
 
@@ -276,6 +287,12 @@ def main() -> None:
     face_cfg = cfg["face"]
     eye_cfg = cfg["eye"]
 
+    face_conf_thresh = face_cfg.get("conf_thresh", 0.5)
+    face_weights_ov = face_cfg["weights"]["openvino"]["path"]
+    face_device_ov = face_cfg["weights"]["openvino"]["device"]
+    face_weights_yv8 = face_cfg["weights"]["yolov8"]["path"]
+    face_device_yv8 = face_cfg["weights"]["yolov8"]["device"]
+
     if not os.path.exists(labels_path):
         logger.error(f"라벨 파일이 없습니다: {labels_path}")
         logger.info(f"{labels_path} 을 먼저 준비하세요.")
@@ -290,7 +307,16 @@ def main() -> None:
     print_result("YOLO Person Detection", bench_yolo(images_dir, labels, yolo_cfg, iou_thresh))
 
     logger.info("Face 평가 중...")
-    print_result("Face Detection (head bbox 있는것만)", bench_face(images_dir, labels, face_cfg, iou_thresh))
+    if os.path.exists(face_weights_ov):
+        print_result(
+            "Face Detection - OpenVINO (head bbox 있는것만)",
+            bench_face("openvino", face_weights_ov, face_device_ov, images_dir, labels, iou_thresh, face_conf_thresh),
+        )
+    if os.path.exists(face_weights_yv8):
+        print_result(
+            "Face Detection - YOLOv8-face (head bbox 있는것만)",
+            bench_face("yolov8", face_weights_yv8, face_device_yv8, images_dir, labels, iou_thresh, face_conf_thresh),
+        )
 
     logger.info("Eye 평가 중...")
     print_result("Eye Detection", bench_eye(images_dir, labels, eye_cfg, iou_thresh))

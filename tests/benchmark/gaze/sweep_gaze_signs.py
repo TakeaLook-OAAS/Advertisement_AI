@@ -66,7 +66,7 @@ def main() -> None:
         labels: List[Dict[str, Any]] = json.load(f)
     logger.info(f"샘플 수: {len(labels)}")
 
-    from src.models.gaze_openvino import GazeDetector
+    from src.models.openvino.gaze_openvino import GazeDetector
     detector = GazeDetector({"weights": gaze_weights, "device": device})
 
     # eye-swap 여부별로 0002 출력을 모아둔다. (pred, gt) 쌍 리스트.

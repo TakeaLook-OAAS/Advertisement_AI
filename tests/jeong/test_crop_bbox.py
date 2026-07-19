@@ -9,7 +9,7 @@ import cv2
 import os
 from src.models.yolo_detector import YoloDetector
 from src.models.bytetrack_tracker import ByteTrackTracker
-from src.models.face_openvino import FaceDetector
+from src.models.openvino.face_openvino import FaceDetector
 from src.vision.draw import draw_tracks, draw_crop_bbox
 
 INPUT_VIDEO = "data/samples/test2.mp4"

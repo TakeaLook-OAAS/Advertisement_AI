@@ -78,11 +78,12 @@ Advertisement_AI/
 │   ├── models/
 │   │   ├── yolo_detector.py      # YOLOv8 사람 검출
 │   │   ├── bytetrack_tracker.py  # ByteTrack 다중 객체 추적
-│   │   ├── face_openvino.py      # OpenVINO 얼굴 검출
 │   │   ├── mivolo_attr.py        # MiVOLO 나이/성별 추정
 │   │   ├── headpose_6drepnet.py  # 6DRepNet 머리 방향 추정
-│   │   ├── eye_openvino.py       # OpenVINO 눈 검출
-│   │   └── gaze_openvino.py      # OpenVINO 시선 추정
+│   │   └── openvino/
+│   │       ├── face_openvino.py  # OpenVINO 얼굴 검출
+│   │       ├── eye_openvino.py   # OpenVINO 눈 검출
+│   │       └── gaze_openvino.py  # OpenVINO 시선 추정
 │   ├── logic/
 │   │   ├── look_judge.py         # 시선 벡터 + headpose 기반 최종 시청 판정
 │   │   ├── stay.py               # ROI 진입/이탈 및 체류 시간 계산

@@ -7,7 +7,7 @@ import numpy as np
 from loguru import logger
 from openvino import Core
 from src.utils.types import BBoxXYXY, Track
-from src.models.face_openvino import FaceDetector
+from src.models.openvino.face_openvino import FaceDetector
 import os
 
 class EyeDetector:
