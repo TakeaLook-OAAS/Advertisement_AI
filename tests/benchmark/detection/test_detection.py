@@ -1,5 +1,5 @@
 """
-검출 모델 벤치마크: YOLO(person bbox), FaceDetector(crop_bbox), EyeDetector(eye bbox)
+검출 모델 벤치마크: YOLO(person bbox), FaceDetector(crop_bbox)
 정답 라벨과 현재 가중치를 비교하여 Precision/Recall/F1, IoU를 측정한다.
 
 사용법:
@@ -207,64 +207,6 @@ def bench_face(
     return precision, recall, f1, mean_iou
 
 
-# ── Eye 벤치마크 ─────────────────────────────────────────────
-
-def bench_eye(
-    images_dir: str, labels: List[Dict[str, Any]], eye_cfg: Dict[str, Any], iou_thresh: float
-) -> Result:
-    """EyeDetector 모델 하나를 평가한다. Returns: (precision, recall, f1, avg_iou)
-
-    주의: 눈은 객체가 작아 IoU가 구조적으로 낮게 나온다. IOU_THRESH=0.5는
-    눈 검출에는 다소 가혹할 수 있다.
-    """
-    from src.models.openvino.eye_openvino import EyeDetector
-
-    detector = EyeDetector(eye_cfg)
-
-    total_tp, total_fp, total_fn = 0, 0, 0
-    all_ious: List[float] = []
-
-    for item in labels:
-        img_path = os.path.join(images_dir, item["image"])
-        frame = cv2.imread(img_path)
-        if frame is None:
-            continue
-
-        for eye_gt in item.get("eyes", []):
-            gt_left = parse_bbox(eye_gt["left"])
-            gt_right = parse_bbox(eye_gt["right"])
-
-            face_bbox = parse_bbox(eye_gt.get("face", item.get("faces", [{}])[0]))
-            track = Track(track_id=0, bbox=face_bbox, crop_bbox=face_bbox)
-            track = detector.detect(frame, track)
-
-            # left eye
-            if track.left_eye is not None:
-                iou_l = compute_iou(track.left_eye, gt_left)
-                if iou_l >= iou_thresh:
-                    total_tp += 1
-                    all_ious.append(iou_l)
-                else:
-                    total_fp += 1
-            else:
-                total_fn += 1
-
-            # right eye
-            if track.right_eye is not None:
-                iou_r = compute_iou(track.right_eye, gt_right)
-                if iou_r >= iou_thresh:
-                    total_tp += 1
-                    all_ious.append(iou_r)
-                else:
-                    total_fp += 1
-            else:
-                total_fn += 1
-
-    precision, recall, f1 = compute_metrics(total_tp, total_fp, total_fn)
-    mean_iou = float(np.mean(all_ious)) if all_ious else 0.0
-    return precision, recall, f1, mean_iou
-
-
 # ── 결과 출력 ────────────────────────────────────────────────
 
 def print_result(title: str, result: Result) -> None:
@@ -285,7 +227,6 @@ def main() -> None:
 
     yolo_cfg = cfg["yolo"]
     face_cfg = cfg["face"]
-    eye_cfg = cfg["eye"]
 
     face_conf_thresh = face_cfg.get("conf_thresh", 0.5)
     face_weights_ov = face_cfg["weights"]["openvino"]["path"]
@@ -317,9 +258,6 @@ def main() -> None:
             "Face Detection - YOLOv8-face (head bbox 있는것만)",
             bench_face("yolov8", face_weights_yv8, face_device_yv8, images_dir, labels, iou_thresh, face_conf_thresh),
         )
-
-    logger.info("Eye 평가 중...")
-    print_result("Eye Detection", bench_eye(images_dir, labels, eye_cfg, iou_thresh))
 
 
 if __name__ == "__main__":

@@ -47,9 +47,6 @@ detection:
       yolov8:
         path: "weights/face_detection/yolov8n-face-lindevs.pt"
         device: "cpu"
-  eye:
-    weights: "weights/eye_detection/facial-landmarks-35-adas-0002.xml"
-    device: "CPU"
 
 gaze:
   data_dir: "data/benchmark/gaze"
