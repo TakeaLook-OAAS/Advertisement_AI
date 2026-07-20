@@ -14,7 +14,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Dict, List
 from src.models.bytetrack_tracker import OfficialByteTrackAdapter
-from src.models.openvino.face_openvino import FaceDetector
+from src.models.face_yolov8 import FaceDetector
 from src.models.yolo_detector import YoloDetector
 from src.models.mivolo_attr import MiVOLOAttr
 from src.models.headpose_6drepnet import HeadPoseEstimator

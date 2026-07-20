@@ -34,7 +34,7 @@ class MiVOLOAttr:
     def __init__(self, cfg: Dict[str, Any]):
         self.device = cfg.get("device", "cpu")
         self.weights = cfg.get(
-            "model",
+            "weights",
             "weights/age_gender/model_imdb_cross_person_4.22_99.46.pth.tar",
         )
         self.repo_root = cfg.get("repo_root", os.getenv("MIVOLO_REPO_ROOT", "MiVOLO"))

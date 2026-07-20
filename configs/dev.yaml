@@ -19,20 +19,30 @@ display:
 
 models:
   yolo:
+    enabled: true
     device: "cuda"
     #device: "cpu"
-    model: "weights/yolo/yolov8n.pt"      # nano model (~6MB, auto-download)
-    conf: 0.5                 # confidence threshold
+    weights: "weights/yolo/yolov8n.pt"      # nano model (~6MB, auto-download)
+    conf_thresh: 0.5                 # confidence threshold
+    iou_thresh: 0.45          # NMS IoU threshold
+    imgsz: 640                # 추론 입력 리사이즈 크기
     classes: [0]              # 0=person in COCO
   tracker:
-    iou_threshold: 0.3
-    max_lost: 30              # 이 프레임 수만큼 미매칭이면 track 삭제
-    img_w: 1920               # 입력 영상 해상도 (ByteTrack 내부 좌표 스케일링용)
+    track_thresh: 0.5         # 고신뢰도 검출 기준. 이상이면 1차 매칭, 미만(low_thresh 이상)이면 2차 매칭 대상
+    track_buffer: 30          # 트랙이 미매칭 상태로 유지되는 최대 프레임 수 (buffer_size = fps/30 * track_buffer)
+    match_thresh: 0.3         # 트랙-검출 매칭 IoU 임계값 (기존 iou_threshold)
+    mot20: false              # MOT20 데이터셋 전용 매칭 로직 사용 여부
+    fps: 30                   # buffer_size 계산에 쓰이는 frame rate
+    img_w: 1920               # 입력 영상 해상도 (ByteTrack 내부 좌표 스케일링/클리핑용)
     img_h: 1080
   face:
-    device: "CPU"
-    weights: "weights/face_detection/face-detection-adas-0001.xml"
+    device: "cuda"
+    #device: "CPU"            # openvino면 대문자, yolo면 소문자
+    weights: "weights/face_detection/yolov8n-face-lindevs.pt"
+    #weights: "weights/face_detection/face-detection-adas-0001.xml"
     conf_thresh: 0.5          # confidence threshold
+    iou_thresh: 0.45          # NMS IoU threshold
+    imgsz: 640                # 추론 입력 리사이즈 크기
     min_face_size: 30         # 최소 얼굴 크기 (pixel). 이보다 작으면 bbox 그대로 반환
   headpose:
     device: "cuda"
@@ -49,7 +59,8 @@ models:
   mivolo:
     device: "cuda"
     #device: "cpu"
-    model: "weights/age_gender/model_imdb_cross_person_4.22_99.46.pth"
+    weights: "weights/age_gender/model_imdb_cross_person_4.22_99.46.pth"
+    repo_root: "MiVOLO"       # MiVOLO 레포 경로 (mivolo 패키지 import용)
     min_face_size: 20
     min_person_size: 40
     use_persons: true
