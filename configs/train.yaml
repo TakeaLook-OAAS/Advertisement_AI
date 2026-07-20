@@ -8,7 +8,7 @@
 
 generate:
   gaze:
-    mpiifacegaze_dir: "data/benchmark/gaze/MPIIFaceGaze"  # 원본 데이터셋 루트
+    mpiifacegaze_dir: "data/train/MPIIFaceGaze"  # 원본 데이터셋 루트
     output_path: "data/benchmark/gaze/labels_train.json"  # 생성할 라벨 JSON
     headpose_weights: "weights/headpose/6DRepNet_300W_LP_AFLW2000.pth"
     #headpose_device: "cpu"
@@ -39,7 +39,7 @@ generate:
 train:
   gaze:
     labels_path: "data/benchmark/gaze/labels_train.json"  # gaze_generate_labels.py 출력
-    images_dir: "data/benchmark/gaze/MPIIFaceGaze"        # 이미지 루트
+    images_dir: "data/train/MPIIFaceGaze"        # 이미지 루트
     output_path: "weights/gaze/gaze_pytorch.pth"          # val error 최소 시점 저장
     #device: "cpu"
     device: "cuda"

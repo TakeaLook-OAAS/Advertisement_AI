@@ -148,7 +148,7 @@ def print_result(result: Tuple[float, float]) -> None:
 def main() -> None:
     cfg = load_config()
     data_dir = cfg["data_dir"]
-    images_dir = os.path.join(data_dir, cfg["images_subdir"])
+    images_dir = cfg["images_dir"]
     labels_path = os.path.join(data_dir, cfg["labels_file"])
     weights_ov = cfg["weights"]["openvino"]["path"]
     device_ov  = cfg["weights"]["openvino"]["device"]

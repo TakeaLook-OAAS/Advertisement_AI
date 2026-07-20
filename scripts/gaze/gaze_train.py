@@ -129,7 +129,7 @@ def main() -> None:
 
     parser = argparse.ArgumentParser(description="GazeNet 학습")
     parser.add_argument("--labels", default=cfg.get("labels_path", "data/benchmark/gaze/labels_train.json"))
-    parser.add_argument("--images-dir", default=cfg.get("images_dir", "data/benchmark/gaze/MPIIFaceGaze"))
+    parser.add_argument("--images-dir", default=cfg.get("images_dir", "data/train/MPIIFaceGaze"))
     parser.add_argument("--epochs", type=int, default=cfg.get("epochs", 50))
     parser.add_argument("--batch", type=int, default=cfg.get("batch", 64))
     parser.add_argument("--lr", type=float, default=cfg.get("lr", 1e-3))

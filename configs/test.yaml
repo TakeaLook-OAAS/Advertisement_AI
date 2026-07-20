@@ -50,7 +50,7 @@ detection:
 
 gaze:
   data_dir: "data/benchmark/gaze"
-  images_subdir: "MPIIFaceGaze"
+  images_dir: "data/train/MPIIFaceGaze"
   labels_file: "labels_test.json"            # convert_mpiifacegaze.py 가 생성
   weights:
     openvino:
@@ -76,7 +76,7 @@ convert:
     attr_dir: "data/benchmark/attr"       # 출력 attr labels.json + images/ 루트
 
   gaze:
-    mpiifacegaze_dir: "data/benchmark/gaze/MPIIFaceGaze"
+    mpiifacegaze_dir: "data/train/MPIIFaceGaze"
     subject: "p00"                        # 변환할 피험자 ID
     output_path: "data/benchmark/gaze/labels_test.json"
     headpose_weights: "weights/headpose/6DRepNet_300W_LP_AFLW2000.pth"

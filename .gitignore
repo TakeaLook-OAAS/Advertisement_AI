@@ -7,6 +7,7 @@ __pycache__/
 data/benchmark/*
 data/output/*
 data/samples/*
+data/train/*
 !data/**/.gitkeep
 *.log
 

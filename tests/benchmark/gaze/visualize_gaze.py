@@ -117,7 +117,7 @@ def main() -> None:
 
     backend     = next(iter(vis_cfg["weights"]))
     data_dir    = gaze_cfg["data_dir"]
-    images_dir  = os.path.join(data_dir, gaze_cfg["images_subdir"])
+    images_dir  = gaze_cfg["images_dir"]
     labels_path = os.path.join(data_dir, gaze_cfg["labels_file"])
     weights     = vis_cfg["weights"][backend]["path"]
     device      = vis_cfg["weights"][backend]["device"]
