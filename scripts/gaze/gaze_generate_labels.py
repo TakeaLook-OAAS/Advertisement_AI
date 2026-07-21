@@ -148,7 +148,7 @@ def main() -> None:
 
     parser = argparse.ArgumentParser(description="MPIIFaceGaze 학습 라벨 생성")
     parser.add_argument("--subjects", nargs="+", default=cfg.get("subjects", ALL_TRAIN_SUBJECTS))
-    parser.add_argument("--images-dir", default=cfg.get("mpiifacegaze_dir", "data/benchmark/gaze/MPIIFaceGaze"))
+    parser.add_argument("--images-dir", default=cfg.get("mpiifacegaze_dir", "data/train/MPIIFaceGaze"))
     parser.add_argument("--every", type=int, default=cfg.get("sample_every", 3),
                         help="샘플링 간격 (1이면 전체)")
     parser.add_argument("--out", default=cfg.get("output_path", "data/benchmark/gaze/labels_train.json"))

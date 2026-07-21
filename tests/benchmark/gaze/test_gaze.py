@@ -90,7 +90,7 @@ def bench_gaze(
     if backend == "pytorch":
         from src.models.gaze.gaze_pytorch import GazeDetector
     else:
-        from src.models.gaze_openvino import GazeDetector
+        from src.models.openvino.gaze_openvino import GazeDetector
 
     cfg = {"weights": weights, "device": device}
     detector = GazeDetector(cfg)
@@ -148,7 +148,7 @@ def print_result(result: Tuple[float, float]) -> None:
 def main() -> None:
     cfg = load_config()
     data_dir = cfg["data_dir"]
-    images_dir = os.path.join(data_dir, cfg["images_subdir"])
+    images_dir = cfg["images_dir"]
     labels_path = os.path.join(data_dir, cfg["labels_file"])
     weights_ov = cfg["weights"]["openvino"]["path"]
     device_ov  = cfg["weights"]["openvino"]["device"]
@@ -169,11 +169,11 @@ def main() -> None:
 
     if os.path.exists(weights_ov):
         logger.info("OpenVINO 평가 중...")
-        results["OpenVINO"] = bench_gaze("openvino", weights_ov, images_dir, labels, device_ov)
+        results["OpenVINO"] = bench_gaze(weights_ov, "openvino", images_dir, labels, device_ov)
 
     if os.path.exists(weights_pt):
         logger.info("PyTorch 평가 중...")
-        results["PyTorch"] = bench_gaze("pytorch", weights_pt, images_dir, labels, device_pt)
+        results["PyTorch"] = bench_gaze(weights_pt, "pytorch", images_dir, labels, device_pt)
 
     print("\n=== Gaze Angular Error 비교 (degrees) ===")
     print(f"{'모델':<12}  {'mean':>8}  {'median':>8}")

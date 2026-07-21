@@ -34,21 +34,23 @@ detection:
   iou_thresh: 0.5                            # TP 판정 IoU 기준
   yolo:
     weights: "weights/yolo/yolov8n.pt"
-    #device: "cpu"
-    device: "cuda"
+    device: "cpu"
+    #device: "cuda"
     conf: 0.5                               # YOLO confidence threshold
     classes: [0]                            # 0 = person (COCO)
   face:
-    weights: "weights/face_detection/face-detection-adas-0001.xml"
-    device: "CPU"
     conf_thresh: 0.5
-  eye:
-    weights: "weights/eye_detection/facial-landmarks-35-adas-0002.xml"
-    device: "CPU"
+    weights:
+      openvino:
+        path: "weights/face_detection/face-detection-adas-0001.xml"
+        device: "CPU"
+      yolov8:
+        path: "weights/face_detection/yolov8n-face-lindevs.pt"
+        device: "cpu"
 
 gaze:
   data_dir: "data/benchmark/gaze"
-  images_subdir: "MPIIFaceGaze"
+  images_dir: "data/train/MPIIFaceGaze"
   labels_file: "labels_test.json"            # convert_mpiifacegaze.py 가 생성
   weights:
     openvino:
@@ -57,6 +59,21 @@ gaze:
     pytorch:
       path: "weights/gaze/gaze_pytorch.pth"
       device: "cuda"              # PyTorch: cpu / cuda
+
+eye:
+  data_dir: "data/benchmark/eye"
+  images_dir: "data/train/WFLW_images"
+  labels_file: "labels_test.json"            # eye_generate_labels.py --split test 가 생성
+  weights:
+    openvino:
+      path: "weights/eye_detection/facial-landmarks-35-adas-0002.xml"
+      device: "CPU"              # OpenVINO: CPU / GPU
+    mse:
+      path: "weights/eye_detection/eye_pytorch_mse.pth"
+      device: "cuda"
+    giou:
+      path: "weights/eye_detection/eye_pytorch_giou.pth"
+      device: "cuda"
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 #  변환 스크립트 (convert_*.py, annotations_to_json.py)
@@ -74,7 +91,7 @@ convert:
     attr_dir: "data/benchmark/attr"       # 출력 attr labels.json + images/ 루트
 
   gaze:
-    mpiifacegaze_dir: "data/benchmark/gaze/MPIIFaceGaze"
+    mpiifacegaze_dir: "data/train/MPIIFaceGaze"
     subject: "p00"                        # 변환할 피험자 ID
     output_path: "data/benchmark/gaze/labels_test.json"
     headpose_weights: "weights/headpose/6DRepNet_300W_LP_AFLW2000.pth"
@@ -102,6 +119,13 @@ visualize:
 
   detection_face:
     out_dir: "data/benchmark/detection/face_check"  # Face 시각화 저장 폴더
+    weights:
+      #openvino:
+        #path: "weights/face_detection/face-detection-adas-0001.xml"
+        #device: "CPU"
+      yolov8:
+        path: "weights/face_detection/yolov8n-face-lindevs.pt"
+        device: "cpu"
 
   gaze:
     weights:

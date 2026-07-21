@@ -11,7 +11,7 @@ test_gaze 의 MAE 가 20° 처럼 어중간할 때, 원인이
   2) 각 경우에 대해 GT 에 (±x, ±y, ±z) 8가지 부호 조합 적용
   3) 16개 조합의 mean angular error 를 표로 출력 → 최소를 채택
 
-설정: configs/test.yaml → gaze (data_dir, images_subdir, labels_file, device, weights.openvino)
+설정: configs/test.yaml → gaze (data_dir, images_dir, labels_file, device, weights.openvino)
 
 사용법:
     python -m tests.benchmark.gaze.sweep_gaze_signs
@@ -53,7 +53,7 @@ def parse_bbox(d: Dict[str, int]) -> BBoxXYXY:
 def main() -> None:
     cfg = load_config()
     data_dir = cfg["data_dir"]
-    images_dir = os.path.join(data_dir, cfg["images_subdir"])
+    images_dir = cfg["images_dir"]
     labels_path = os.path.join(data_dir, cfg["labels_file"])
     gaze_weights = cfg["weights"]["openvino"]["path"]   # sweep 은 OpenVINO 모델만 사용
     device       = cfg["weights"]["openvino"]["device"]
@@ -66,7 +66,7 @@ def main() -> None:
         labels: List[Dict[str, Any]] = json.load(f)
     logger.info(f"샘플 수: {len(labels)}")
 
-    from src.models.gaze_openvino import GazeDetector
+    from src.models.openvino.gaze_openvino import GazeDetector
     detector = GazeDetector({"weights": gaze_weights, "device": device})
 
     # eye-swap 여부별로 0002 출력을 모아둔다. (pred, gt) 쌍 리스트.

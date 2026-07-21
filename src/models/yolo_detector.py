@@ -8,9 +8,9 @@ Ultralytics 패키지를 사용하는 YOLO 검출기 래퍼.
 
 설정 키 (models.yolo 하위):
   enabled       bool   true
-  model_path    str    "yolov8n.pt"   (최초 실행 시 자동 다운로드)
+  model         str    "yolov8n.pt"   (최초 실행 시 자동 다운로드)
   device        str    "cpu"
-  conf_thresh   float  0.25
+  conf          float  0.25
   iou_thresh    float  0.45           (NMS IoU)
   classes       list   [0]            COCO 클래스 ID (0=사람)
   imgsz         int    640
@@ -31,7 +31,7 @@ class YoloDetector:
     def __init__(self, cfg: Dict[str, Any]):
         self.cfg = cfg
         self.enabled     = bool(cfg.get("enabled", True))
-        self.model_path  = cfg.get("model_path", "weights/yolo/yolov8n.pt")
+        self.weights  = cfg.get("weights", "weights/yolo/yolov8n.pt")
         self.device      = cfg.get("device", "cuda" if torch.cuda.is_available() else "cpu")
         self.conf_thresh = float(cfg.get("conf_thresh", 0.25))
         self.iou_thresh  = float(cfg.get("iou_thresh",  0.45))
@@ -46,7 +46,7 @@ class YoloDetector:
 
         try:
             from ultralytics import YOLO  # type: ignore
-            self.model = YOLO(self.model_path)
+            self.model = YOLO(self.weights)
             self.model.to(self.device)
             # 워밍업
             self.model(
@@ -55,7 +55,7 @@ class YoloDetector:
                 verbose=False,
             )
             logger.info(
-                f"[YOLO] model={self.model_path}  device={self.device}  "
+                f"[YOLO] model={self.weights}  device={self.device}  "
                 f"conf={self.conf_thresh}  classes={self.classes}"
             )
         except ImportError:

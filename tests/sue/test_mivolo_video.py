@@ -10,7 +10,7 @@ import yaml
 
 from src.models.yolo_detector import YoloDetector
 from src.models.bytetrack_tracker import ByteTrackTracker
-from src.models.face_openvino import FaceDetector
+from src.models.openvino.face_openvino import FaceDetector
 from src.models.mivolo_attr import MiVOLOAttr
 
 

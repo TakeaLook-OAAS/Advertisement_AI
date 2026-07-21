@@ -8,8 +8,8 @@ face detection -> eye detection 파이프라인을 태운 뒤
 """
 import cv2
 import os
-from src.models.face_openvino import FaceDetector
-from src.models.eye_openvino import EyeDetector
+from src.models.openvino.face_openvino import FaceDetector
+from src.models.openvino.eye_openvino import EyeDetector
 from src.utils.types import BBoxXYXY, Track
 from loguru import logger
 

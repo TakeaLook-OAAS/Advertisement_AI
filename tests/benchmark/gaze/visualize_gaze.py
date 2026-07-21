@@ -117,7 +117,7 @@ def main() -> None:
 
     backend     = next(iter(vis_cfg["weights"]))
     data_dir    = gaze_cfg["data_dir"]
-    images_dir  = os.path.join(data_dir, gaze_cfg["images_subdir"])
+    images_dir  = gaze_cfg["images_dir"]
     labels_path = os.path.join(data_dir, gaze_cfg["labels_file"])
     weights     = vis_cfg["weights"][backend]["path"]
     device      = vis_cfg["weights"][backend]["device"]
@@ -137,7 +137,7 @@ def main() -> None:
     if backend == "pytorch":
         from src.models.gaze.gaze_pytorch import GazeDetector
     else:
-        from src.models.gaze_openvino import GazeDetector
+        from src.models.openvino.gaze_openvino import GazeDetector
 
     detector = GazeDetector({"weights": weights, "device": device})
     os.makedirs(save_dir, exist_ok=True)

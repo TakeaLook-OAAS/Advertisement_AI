@@ -12,7 +12,7 @@ from loguru import logger
 
 from src.models.yolo_detector import YoloDetector
 from src.models.bytetrack_tracker import ByteTrackTracker
-from src.models.face_openvino import FaceDetector
+from src.models.openvino.face_openvino import FaceDetector
 from src.models.headpose_6drepnet import HeadPoseEstimator
 from src.vision.draw import draw_tracks, draw_crop_bbox, draw_headpose
 

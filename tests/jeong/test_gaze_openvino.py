@@ -8,10 +8,10 @@ import numpy as np
 from loguru import logger
 from src.utils.types import BBoxXYXY, Track, Gaze
 from src.models.yolo_detector import YoloDetector
-from src.models.face_openvino import FaceDetector
+from src.models.openvino.face_openvino import FaceDetector
 from src.models.headpose_6drepnet import HeadPoseEstimator
-from src.models.eye_openvino import EyeDetector
-from src.models.gaze_openvino import GazeDetector
+from src.models.openvino.eye_openvino import EyeDetector
+from src.models.openvino.gaze_openvino import GazeDetector
 from src.vision.draw import draw_tracks, draw_crop_bbox, draw_headpose, draw_gaze
 
 
