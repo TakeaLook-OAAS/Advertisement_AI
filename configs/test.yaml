@@ -60,6 +60,21 @@ gaze:
       path: "weights/gaze/gaze_pytorch.pth"
       device: "cuda"              # PyTorch: cpu / cuda
 
+eye:
+  data_dir: "data/benchmark/eye"
+  images_dir: "data/train/WFLW_images"
+  labels_file: "labels_test.json"            # eye_generate_labels.py --split test 가 생성
+  weights:
+    openvino:
+      path: "weights/eye_detection/facial-landmarks-35-adas-0002.xml"
+      device: "CPU"              # OpenVINO: CPU / GPU
+    mse:
+      path: "weights/eye_detection/eye_pytorch_mse.pth"
+      device: "cuda"
+    giou:
+      path: "weights/eye_detection/eye_pytorch_giou.pth"
+      device: "cuda"
+
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 #  변환 스크립트 (convert_*.py, annotations_to_json.py)
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━

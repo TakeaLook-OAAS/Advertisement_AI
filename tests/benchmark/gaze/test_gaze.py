@@ -169,11 +169,11 @@ def main() -> None:
 
     if os.path.exists(weights_ov):
         logger.info("OpenVINO 평가 중...")
-        results["OpenVINO"] = bench_gaze("openvino", weights_ov, images_dir, labels, device_ov)
+        results["OpenVINO"] = bench_gaze(weights_ov, "openvino", images_dir, labels, device_ov)
 
     if os.path.exists(weights_pt):
         logger.info("PyTorch 평가 중...")
-        results["PyTorch"] = bench_gaze("pytorch", weights_pt, images_dir, labels, device_pt)
+        results["PyTorch"] = bench_gaze(weights_pt, "pytorch", images_dir, labels, device_pt)
 
     print("\n=== Gaze Angular Error 비교 (degrees) ===")
     print(f"{'모델':<12}  {'mean':>8}  {'median':>8}")
