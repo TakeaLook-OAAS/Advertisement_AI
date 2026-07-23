@@ -207,6 +207,7 @@ class PersonState:
     first_seen_ms: int          # 처음 나타난 시간
     last_seen_ms: int           # 마지막으로 본 시간 (매 프레임 갱신)
     is_active: bool = True      # 아직 화면에 있는지 (사라지면 False)
+    confirmed: bool = False     # track.hits가 min_hits 이상 된 적이 있는지 (한 번 True면 계속 True)
 
     # ── 이전 프레임 상태 (다음 프레임과 비교용) ──
     is_looking: bool = False    # 이전 프레임에서 보고 있었는지

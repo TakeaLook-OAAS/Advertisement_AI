@@ -34,12 +34,17 @@ class StatusTracker:
         self._segment_start_ms: int = 0    # 현재 세그먼트의 시작 시간
         self._roi_polygon: List[List[int]] = []  # ROI 폴리곤 좌표
         self._device_id: str = ""          # 카메라 식별자
+        self._min_hits: int = 1            # 이 값 이상 track.hits가 돼야 '사람 있음'으로 확정
 
     def set_roi_polygon(self, polygon: List[List[int]]) -> None:
         self._roi_polygon = polygon
 
     def set_device_id(self, device_id: str) -> None:
         self._device_id = device_id
+
+    def set_min_hits(self, min_hits: int) -> None:
+        """track.hits(연속 매칭 프레임 수)가 이 값 이상이어야 결과에 포함된다."""
+        self._min_hits = max(1, int(min_hits))
 
     def _update_frame_interval(self, meta: FrameMeta) -> None:
         if meta.fps > 0:
@@ -67,6 +72,11 @@ class StatusTracker:
                 )
 
             state = self._states[tid]
+            state.is_active = True  # 잠깐 사라졌다 같은 track_id로 재등장한 경우 대비 (재등장 시 vanished 감지가 다시 동작하도록)
+
+            # 0) 확정 판정 (한 번 확정되면 계속 유지)
+            if not state.confirmed and track.hits >= self._min_hits:
+                state.confirmed = True
 
             # 1) 시간 갱신
             state.last_seen_ms = meta.ts_ms + self._frame_interval_ms
@@ -215,11 +225,12 @@ class StatusTracker:
 
             was_active = state.is_active
 
-            # summary 생성
-            summary = self._to_summary(state, base_ms)
-            summaries.append(summary)
+            # summary 생성 (min_hits 미달로 확정 안 된 track은 결과에서 제외)
+            if state.confirmed:
+                summary = self._to_summary(state, base_ms)
+                summaries.append(summary)
 
-            # 활성 track은 다음 세그먼트로 이월
+            # 활성 track은 다음 세그먼트로 이월 (확정 여부도 함께 이월)
             if was_active:
                 carry_forward.append({
                     "track_id": tid,
@@ -227,6 +238,7 @@ class StatusTracker:
                     "gender": state.gender,
                     "in_roi": state.in_roi,
                     "is_looking": state.is_looking,
+                    "confirmed": state.confirmed,
                 })
 
         # _states 초기화 후 이월 track 재생성
@@ -241,6 +253,7 @@ class StatusTracker:
                 is_looking=info["is_looking"],
                 age_group=info["age_group"],
                 gender=info["gender"],
+                confirmed=info["confirmed"],
             )
             if info["is_looking"]:
                 new_state.current_look_start_ms = boundary_ms

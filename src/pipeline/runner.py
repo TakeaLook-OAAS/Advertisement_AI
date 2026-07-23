@@ -20,6 +20,7 @@ from src.vision.draw import draw_tracks, draw_crop_bbox, draw_fps, draw_headpose
 def run_loop(cfg: Dict[str, Any], source: Union[int, str], orch) -> None:
     vs = VideoSource(source)
     status = StatusTracker()
+    status.set_min_hits(int(cfg.get("logic", {}).get("presence", {}).get("min_hits", 3)))
 
     # ── display ──────────────────────────────────────────────────
     disp_cfg = cfg.get("display", {})
