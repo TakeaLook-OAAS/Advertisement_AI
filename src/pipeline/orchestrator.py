@@ -18,8 +18,8 @@ from src.models.face_yolov8 import FaceDetector
 from src.models.yolo_detector import YoloDetector
 from src.models.mivolo_attr import MiVOLOAttr
 from src.models.headpose_6drepnet import HeadPoseEstimator
-from src.models.openvino.eye_openvino import EyeDetector
-from src.models.openvino.gaze_openvino import GazeDetector
+from src.models.eye.eye_pytorch import EyeDetector
+from src.models.gaze.gaze_pytorch import GazeDetector
 from src.logic.stay import StayTracker
 from src.logic.look_judge import LookJudge
 from src.utils.types import Det, FrameMeta, Track
@@ -44,7 +44,14 @@ class Orchestrator:
         self.gaze = GazeDetector(cfg.get("models", {}).get("gaze", {}))
 
         self.detector = YoloDetector(cfg.get("models", {}).get("yolo", {}))
-        self.tracker = OfficialByteTrackAdapter(cfg.get("models", {}).get("tracker", {}))
+
+        # tracker.fps는 "원본 영상 fps" 기준. frame_skip으로 실제 update() 호출 빈도가
+        # 줄어드는 만큼 나눠서 넘겨야 ByteTrack의 buffer_size(=max_time_lost) 계산이
+        # 실제 경과 시간과 맞아떨어진다 (안 그러면 frame_skip>1일 때 트랙이 너무 빨리 삭제됨).
+        tracker_cfg = dict(cfg.get("models", {}).get("tracker", {}))
+        frame_skip = int(cfg.get("pipeline", {}).get("frame_skip", 1))
+        tracker_cfg["fps"] = tracker_cfg.get("fps", 30) / frame_skip
+        self.tracker = OfficialByteTrackAdapter(tracker_cfg)
         self.mivolo = MiVOLOAttr(cfg.get("models", {}).get("mivolo", {}))
         self.headpose = HeadPoseEstimator(cfg.get("models", {}).get("headpose", {}))
 

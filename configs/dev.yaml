@@ -50,17 +50,20 @@ models:
     weights: "weights/headpose/6DRepNet_300W_LP_AFLW2000.pth"  # 가중치 경로
     min_face_size: 30         # 최소 얼굴 크기 (pixel). 이보다 작으면 실패 처리
   eye:
-    device: "CPU"
-    weights: "weights/eye_detection/facial-landmarks-35-adas-0002.xml"
+    device: "cuda"
+    #device: "CPU"
+    weights: "weights/eye_detection/eye_pytorch_giou.pth"
+    #weights: "weights/eye_detection/facial-landmarks-35-adas-0002.xml"
     min_eye_size: 10
   gaze:
-    device: "CPU"
-    weights: "weights/gaze/gaze-estimation-adas-0002.xml"
+    device: "cuda"
+    #device: "CPU"
+    weights: "weights/gaze/gaze_pytorch.pth"
+    #weights: "weights/gaze/gaze-estimation-adas-0002.xml"
   mivolo:
     device: "cuda"
     #device: "cpu"
     weights: "weights/age_gender/model_imdb_cross_person_4.22_99.46.pth"
-    repo_root: "MiVOLO"       # MiVOLO 레포 경로 (mivolo 패키지 import용)
     min_face_size: 20
     min_person_size: 40
     use_persons: true
@@ -71,6 +74,8 @@ pipeline:
 # 테스트 목적이면 5~10, 실제 분석 결과가 중요하면 1~3을 권장
 
 logic:
+  presence:
+    min_hits: 10   # track.hits(연속 매칭 프레임 수)가 이 값 이상이어야 '사람 있음'으로 확정. frame_skip 적용 후 프레임 기준
   attention:
     threshold_deg: 30.0        # distance_adaptive 비활성/미설정 시 fallback
     distance_adaptive:
