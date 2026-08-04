@@ -73,13 +73,57 @@ class FaceDetector:
     def detect_batch(self, frame: np.ndarray, tracks: List[Track]) -> List[Track]:
         """
         여러 track에 대해 얼굴 검출 후 crop_bbox를 갱신합니다.
+        person crop들을 모아 한 번의 배치 추론으로 처리합니다.
 
         Returns
         -------
         List[Track]
             crop_bbox가 갱신된 트랙 리스트
         """
-        return [self.detect(frame, t) for t in tracks]
+        valid_tracks: List[Track] = []
+        crops: List[np.ndarray] = []
+        for track in tracks:
+            bbox = track.bbox
+            if bbox.h() < self.min_face_size or bbox.w() < self.min_face_size:
+                continue
+            person_crop = frame[bbox.y1:bbox.y2, bbox.x1:bbox.x2]
+            if person_crop.size == 0:
+                continue
+            valid_tracks.append(track)
+            crops.append(person_crop)
+
+        if not crops:
+            return tracks
+
+        results = self.model(
+            crops,
+            conf=self.conf_thresh,
+            iou=self.iou_thresh,
+            imgsz=self.imgsz,
+            device=self.device,
+            verbose=False,
+        )
+
+        fh, fw = frame.shape[:2]
+        for track, result in zip(valid_tracks, results):
+            if result.boxes is None or len(result.boxes) == 0:
+                continue
+
+            boxes = result.boxes.xyxy.cpu().numpy()
+            scores = result.boxes.conf.cpu().numpy().reshape(-1)
+
+            best_idx = int(np.argmax(scores))
+            fx1, fy1, fx2, fy2 = boxes[best_idx]
+
+            bbox = track.bbox
+            track.crop_bbox = BBoxXYXY(
+                x1=max(0, min(bbox.x1 + int(fx1), fw)),
+                y1=max(0, min(bbox.y1 + int(fy1), fh)),
+                x2=max(0, min(bbox.x1 + int(fx2), fw)),
+                y2=max(0, min(bbox.y1 + int(fy2), fh)),
+            )
+
+        return tracks
 
 
 # https://github.com/lindevs/yolov8-face

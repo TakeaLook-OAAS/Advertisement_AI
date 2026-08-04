@@ -11,8 +11,11 @@
 # 8. log/write
 
 from __future__ import annotations
+import time
+from collections import defaultdict
 from dataclasses import dataclass
 from typing import Any, Dict, List
+from loguru import logger
 from src.models.bytetrack_tracker import OfficialByteTrackAdapter
 from src.models.face_yolov8 import FaceDetector
 from src.models.yolo_detector import YoloDetector
@@ -60,33 +63,70 @@ class Orchestrator:
         self.stay_tracker = StayTracker(roi_pts) if roi_pts else None
         self.look_judge = LookJudge(cfg.get("logic", {}).get("attention", {}))
 
+        # 스테이지별 소요 시간 프로파일링 (LOG_INTERVAL 프레임마다 평균 로그 후 리셋)
+        self._stage_times: Dict[str, float] = defaultdict(float)
+        self._stage_frame_count = 0
+        self._STAGE_LOG_INTERVAL = 60
+
     def process(self, frame) -> OrchestratorOutput:
+        t0 = time.perf_counter()
+
         # 1) detect
         dets = self.detector.detect(frame)
+        t1 = time.perf_counter()
 
         # 2) track
         tracks = self.tracker.update(dets)
+        t2 = time.perf_counter()
 
         # 3) crop face → track.crop_bbox
         tracks = self.face.detect_batch(frame, tracks)
+        t3 = time.perf_counter()
 
         # 4) mivolo -> track.attr
         tracks = self.mivolo.infer(frame, tracks)
+        t4 = time.perf_counter()
 
         # 5) headpose → track.headpose
         tracks = self.headpose.infer_batch(frame, tracks)
+        t5 = time.perf_counter()
 
         # 6) crop eye → track.left_eye, track.right_eye
         tracks = self.eye.detect_batch(frame, tracks)
+        t6 = time.perf_counter()
 
         # 7) gaze → track.gaze
         tracks = self.gaze.detect_batch(frame, tracks)
+        t7 = time.perf_counter()
 
         # 8) ROI 판정 → track.roi, none일 경우 에러나서 코드 수정
         if self.stay_tracker is not None:
             tracks = self.stay_tracker.update(tracks)
+        t8 = time.perf_counter()
 
         # 9) 시선 판정 → track.look_result
         tracks = self.look_judge.judge_batch(tracks)
+        t9 = time.perf_counter()
+
+        self._stage_times["yolo"] += t1 - t0
+        self._stage_times["track"] += t2 - t1
+        self._stage_times["face"] += t3 - t2
+        self._stage_times["mivolo"] += t4 - t3
+        self._stage_times["headpose"] += t5 - t4
+        self._stage_times["eye"] += t6 - t5
+        self._stage_times["gaze"] += t7 - t6
+        self._stage_times["roi"] += t8 - t7
+        self._stage_times["look_judge"] += t9 - t8
+        self._stage_times["total"] += t9 - t0
+        self._stage_frame_count += 1
+
+        if self._stage_frame_count >= self._STAGE_LOG_INTERVAL:
+            parts = ", ".join(
+                f"{name}={self._stage_times[name] / self._stage_frame_count * 1000:.1f}ms"
+                for name in ["yolo", "track", "face", "mivolo", "headpose", "eye", "gaze", "roi", "look_judge", "total"]
+            )
+            logger.info(f"[Orchestrator] stage avg/frame ({self._stage_frame_count} frames): {parts}")
+            self._stage_times.clear()
+            self._stage_frame_count = 0
 
         return OrchestratorOutput(dets=dets, tracks=tracks)

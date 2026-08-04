@@ -76,9 +76,59 @@ class EyeDetector:
         )
 
     def detect_batch(self, frame: np.ndarray, tracks: List[Track]) -> List[Track]:
-        return [self.detect(frame, t) for t in tracks]
+        """
+        여러 track의 face crop을 모아 한 번의 배치 추론으로 눈 좌표를 구합니다.
+        """
+        size = EyeNet.FACE_SIZE
+        valid_tracks: List[Track] = []
+        crops = []
+
+        for track in tracks:
+            crop_bbox = track.crop_bbox
+            if crop_bbox is None:
+                track.left_eye = None
+                track.right_eye = None
+                continue
+
+            crop_h = crop_bbox.h()
+            crop_w = crop_bbox.w()
+            if crop_h < self.min_eye_size or crop_w < self.min_eye_size:
+                track.left_eye = None
+                track.right_eye = None
+                continue
+
+            face_crop = frame[crop_bbox.y1:crop_bbox.y2, crop_bbox.x1:crop_bbox.x2]
+            if face_crop.size == 0:
+                track.left_eye = None
+                track.right_eye = None
+                continue
+
+            valid_tracks.append(track)
+            crops.append(cv2.resize(face_crop, (size, size)))
+
+        if not crops:
+            return tracks
+
+        batch = self._to_batch_tensor(crops)
+        with torch.no_grad():
+            boxes = self.model(batch).cpu().numpy().reshape(-1, 2, 4)
+
+        for track, track_boxes in zip(valid_tracks, boxes):
+            crop_bbox = track.crop_bbox
+            crop_w = crop_bbox.w()
+            crop_h = crop_bbox.h()
+            track.left_eye = self._to_bbox(track_boxes[0], crop_bbox, crop_w, crop_h)
+            track.right_eye = self._to_bbox(track_boxes[1], crop_bbox, crop_w, crop_h)
+
+        return tracks
 
     def _to_tensor(self, img: np.ndarray) -> torch.Tensor:
         """HWC uint8 BGR → (1, 3, H, W) float32 [0,1]"""
         t = torch.tensor(img.transpose(2, 0, 1), dtype=torch.float32, device=self.device)
         return t.unsqueeze(0) / 255.0
+
+    def _to_batch_tensor(self, imgs: List[np.ndarray]) -> torch.Tensor:
+        """HWC uint8 BGR 리스트 → (N, 3, H, W) float32 [0,1]"""
+        arr = np.stack(imgs).transpose(0, 3, 1, 2)
+        t = torch.tensor(arr, dtype=torch.float32, device=self.device)
+        return t / 255.0

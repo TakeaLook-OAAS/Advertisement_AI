@@ -8,6 +8,7 @@ import os
 import sys
 
 import numpy as np
+import torch
 from loguru import logger
 
 from src.utils.types import (
@@ -43,6 +44,10 @@ class MiVOLOAttr:
         self.use_persons = bool(cfg.get("use_persons", True))
 
         self.model = self._load_model()
+
+        # track_id별 캐시: 나이/성별은 트랙 생존 기간 중 거의 안 바뀌므로
+        # 한 번 추론에 성공하면 재사용해서 매 프레임 재추론을 피한다.
+        self._attr_cache: Dict[int, PersonAttr] = {}
 
         # 체크포인트 메타와 실제 설정 동기화
         if hasattr(self.model, "meta") and hasattr(self.model.meta, "with_persons_model"):
@@ -84,54 +89,61 @@ class MiVOLOAttr:
     
     def infer(self, frame: np.ndarray, tracks: List[Track]) -> List[Track]:
         """
-        각 track의 attr 필드를 채워서 반환
+        각 track의 attr 필드를 채워서 반환.
+        캐시에 없는 track만 face/person crop을 모아 한 번의 배치 추론으로 처리하고,
+        캐시에 있으면 그 값을 그대로 재사용합니다.
         """
+        valid_tracks: List[Track] = []
+        face_imgs: List[np.ndarray] = []
+        person_imgs: List[np.ndarray] = []
+
         for track in tracks:
-            attr = self._infer_one(frame, track)
-            track.attr = attr
+            cached = self._attr_cache.get(track.track_id)
+            if cached is not None:
+                track.attr = cached
+                continue
+
+            face_img = self._crop_face(frame, track)
+            if face_img is None:
+                continue
+
+            person_img = None
+            if self.use_persons:
+                person_img = self._crop_person(frame, track)
+                if person_img is None:
+                    continue
+
+            valid_tracks.append(track)
+            face_imgs.append(face_img)
+            if self.use_persons:
+                person_imgs.append(person_img)
+
+        if valid_tracks:
+            try:
+                preds = self._predict_batch(face_imgs, person_imgs if self.use_persons else None)
+            except Exception:
+                # logger.exception("[MiVOLOAttr] batch prediction failed")
+                preds = None
+
+            if preds is not None:
+                for track, pred in zip(valid_tracks, preds):
+                    if pred is None:
+                        continue
+                    age, gender_value = pred
+                    attr = PersonAttr(
+                        gender=self._to_gender(gender_value),
+                        age_group=self._to_age_group(age),
+                    )
+                    track.attr = attr
+                    self._attr_cache[track.track_id] = attr
+
+        # 트래커가 더 이상 반환하지 않는(=사라진) track_id는 캐시에서 정리
+        active_ids = {t.track_id for t in tracks}
+        for tid in list(self._attr_cache.keys()):
+            if tid not in active_ids:
+                del self._attr_cache[tid]
 
         return tracks
-
-    def _infer_one(self, frame: np.ndarray, track: Track) -> Optional[PersonAttr]:
-        # logger.info(
-        #     f"[MiVOLOAttr] track_id={track.track_id}, "
-        #     f"person_bbox={track.bbox}, face_bbox={track.crop_bbox}"
-        # )
-
-        face_img = self._crop_face(frame, track)
-        if face_img is None:
-            # logger.warning(f"[MiVOLOAttr] no valid face crop for track_id={track.track_id}")
-            return None
-
-        person_img = None
-        if self.use_persons:
-            person_img = self._crop_person(frame, track)
-            if person_img is None:
-                # logger.warning(f"[MiVOLOAttr] no valid person crop for track_id={track.track_id}")
-                return None
-
-        try:
-            pred = self._predict(face_img, person_img)
-        except Exception:
-            # logger.exception(
-            #     f"[MiVOLOAttr] prediction failed for track_id={track.track_id}"
-            # )
-            return None
-
-        if pred is None:
-            return None
-
-        age, gender_value = pred
-
-        # logger.info(
-        #     f"[MiVOLOAttr] parsed pred for track_id={track.track_id}: "
-        #     f"age={age}, gender={gender_value}"
-        # )
-
-        return PersonAttr(
-            gender=self._to_gender(gender_value),
-            age_group=self._to_age_group(age),
-        )
 
     def _crop_face(self, frame: np.ndarray, track: Track) -> Optional[np.ndarray]:
         """
@@ -187,18 +199,18 @@ class MiVOLOAttr:
 
         return person
 
-    def _predict(
+    def _predict_batch(
         self,
-        face_img: np.ndarray,
-        person_img: Optional[np.ndarray] = None,
+        face_imgs: List[np.ndarray],
+        person_imgs: Optional[List[np.ndarray]] = None,
     ):
         """
-        얼굴 crop 하나(or 얼굴+사람 crop)를 MiVOLO 모델에 직접 넣어 age/gender 추론
+        여러 face crop(+ person crop)을 한 번의 배치로 MiVOLO 모델에 넣어 age/gender 추론
         """
         from mivolo.data.misc import prepare_classification_images
 
         faces_input = prepare_classification_images(
-            [face_img],
+            face_imgs,
             self.model.input_size,
             self.model.data_config["mean"],
             self.model.data_config["std"],
@@ -206,14 +218,14 @@ class MiVOLOAttr:
         )
 
         if faces_input is None:
-            raise ValueError("prepare_classification_images returned None for face")
+            raise ValueError("prepare_classification_images returned None for faces")
 
         if self.use_persons:
-            if person_img is None:
-                raise ValueError("person_img is required when use_persons=True")
+            if person_imgs is None:
+                raise ValueError("person_imgs is required when use_persons=True")
 
             persons_input = prepare_classification_images(
-                [person_img],
+                person_imgs,
                 self.model.input_size,
                 self.model.data_config["mean"],
                 self.model.data_config["std"],
@@ -221,44 +233,31 @@ class MiVOLOAttr:
             )
 
             if persons_input is None:
-                raise ValueError("prepare_classification_images returned None for person")
+                raise ValueError("prepare_classification_images returned None for persons")
 
             # face + person => [B, 6, H, W]
-            model_input = np.concatenate(
-                [faces_input.cpu().numpy(), persons_input.cpu().numpy()],
-                axis=1,
-            )
-
-            import torch
-            model_input = torch.from_numpy(model_input).to(self.model.device)
-
-            # logger.info(
-            #     f"[MiVOLOAttr] face+person input shape={tuple(model_input.shape)}"
-            # )
+            model_input = torch.cat([faces_input, persons_input], dim=1)
         else:
             model_input = faces_input
-            # logger.info(
-            #     f"[MiVOLOAttr] face-only input shape={tuple(model_input.shape)}"
-            # )
 
         output = self.model.inference(model_input)
 
-        # logger.info(f"[MiVOLOAttr] raw output shape={tuple(output.shape)}")
-
         if self.model.meta.only_age:
             age_output = output
-            gender = None
+            genders = [None] * age_output.shape[0]
         else:
             age_output = output[:, 2]
             gender_output = output[:, :2].softmax(-1)
             _, gender_idx = gender_output.topk(1)
-            gender = "male" if gender_idx[0].item() == 0 else "female"
+            genders = ["male" if idx.item() == 0 else "female" for idx in gender_idx]
 
-        age = age_output[0].item()
-        age = age * (self.model.meta.max_age - self.model.meta.min_age) + self.model.meta.avg_age
-        age = round(age, 2)
+        results = []
+        for i in range(age_output.shape[0]):
+            age = age_output[i].item()
+            age = age * (self.model.meta.max_age - self.model.meta.min_age) + self.model.meta.avg_age
+            results.append((round(age, 2), genders[i]))
 
-        return age, gender
+        return results
 
     def _to_gender(self, gender_value: Any) -> Gender:
         if gender_value is None:

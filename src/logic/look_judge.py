@@ -144,10 +144,6 @@ class LookJudge:
         if self.hysteresis_enabled:
             smoothed = self._apply_hysteresis(track.track_id, result.is_looking)
             if smoothed != result.is_looking:
-                logger.debug(
-                    f"[LookJudge] track_id={track.track_id} hysteresis holding "
-                    f"raw={result.is_looking} -> smoothed={smoothed}"
-                )
                 result = replace(result, is_looking=smoothed, raw_is_looking=result.is_looking)
             else:
                 result = replace(result, raw_is_looking=result.is_looking)
