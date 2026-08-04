@@ -2,6 +2,10 @@
 
 from __future__ import annotations
 from typing import Any, Dict, List
+import cv2
+import numpy as np
+import torch
+from PIL import Image
 from loguru import logger
 from src.utils.types import HeadPose, Track
 
@@ -18,6 +22,7 @@ class HeadPoseEstimator:
 
     def __init__(self, cfg: Dict[str, Any]):
         from sixdrepnet import SixDRepNet
+        from sixdrepnet.utils import compute_euler_angles_from_rotation_matrices
 
         device_str = cfg.get("device", "cpu")
         gpu_id = -1 if device_str == "cpu" else 0   # cpu면 -1, gpu면 0
@@ -26,6 +31,7 @@ class HeadPoseEstimator:
         weights = cfg.get("weights", "weights/headpose/6DRepNet_300W_LP_AFLW2000.pth")
         logger.info(f"Loading 6DRepNet model (gpu_id={gpu_id}, weights='{weights or 'auto'}')")
         self.model = SixDRepNet(gpu_id=gpu_id, dict_path=weights)   # 가중치 다운로드
+        self._compute_euler_angles = compute_euler_angles_from_rotation_matrices
 
     def infer(self, frame, track: Track) -> Track:
         """
@@ -73,6 +79,63 @@ class HeadPoseEstimator:
 
     def infer_batch(self, frame, tracks: List[Track]) -> List[Track]:
         """
-        여러 track에 대해 headpose를 추정하여 track.headpose에 채웁니다.
+        여러 track의 face crop을 모아 한 번의 배치 추론으로 headpose를 구합니다.
+        sixdrepnet의 predict()는 한 장씩만 처리하므로, 내부 model/전처리(transformations)를
+        직접 호출해서 배치로 묶습니다.
         """
-        return [self.infer(frame, t) for t in tracks]
+        valid_tracks: List[Track] = []
+        imgs: List[torch.Tensor] = []
+
+        for track in tracks:
+            if track.crop_bbox is None:
+                track.headpose = None
+                continue
+
+            crop_bbox = track.crop_bbox
+            crop_h = crop_bbox.h()
+            crop_w = crop_bbox.w()
+
+            if crop_h < self.min_face_size or crop_w < self.min_face_size:
+                track.headpose = None
+                continue
+
+            crop = frame[crop_bbox.y1:crop_bbox.y2, crop_bbox.x1:crop_bbox.x2]
+            if crop.size == 0:
+                track.headpose = None
+                continue
+
+            try:
+                rgb = cv2.cvtColor(crop, cv2.COLOR_BGR2RGB)
+                img = self.model.transformations(Image.fromarray(rgb))
+            except Exception as e:
+                logger.debug(f"6DRepNet preprocess error: {e}")
+                track.headpose = None
+                continue
+
+            valid_tracks.append(track)
+            imgs.append(img)
+
+        if not imgs:
+            return tracks
+
+        batch = torch.stack(imgs)
+        if self.model.gpu != -1:
+            batch = batch.cuda(self.model.gpu)
+
+        try:
+            with torch.no_grad():
+                rotation = self.model.model(batch)
+                euler = self._compute_euler_angles(rotation) * 180 / np.pi
+        except Exception as e:
+            logger.debug(f"6DRepNet batch predict error: {e}")
+            return tracks
+
+        pitch = euler[:, 0].cpu().numpy()
+        yaw = euler[:, 1].cpu().numpy()
+        roll = euler[:, 2].cpu().numpy()
+
+        for i, track in enumerate(valid_tracks):
+            # yaw가 음수면 오른쪽, 양수면 왼쪽 / pitch가 음수면 아래, 양수면 위
+            track.headpose = HeadPose(yaw=-float(yaw[i]), pitch=float(pitch[i]), roll=float(roll[i]))
+
+        return tracks
