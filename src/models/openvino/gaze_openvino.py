@@ -59,6 +59,9 @@ class GazeDetector:
 
     def detect_batch(self, frame: np.ndarray, tracks: List[Track]) -> List[Track]:
         """track.headpose를 사용하여 track.gaze를 채웁니다."""
+        # 주의: 이 IR 모델은 배치(>1) 입력 시 결과가 조용히 틀려짐(검증됨).
+        # reshape로 dynamic batch를 걸어도 에러 없이 잘못된 값을 반환하므로
+        # 트랙별 개별 호출을 유지한다.
         return [self.detect(frame, t) for t in tracks]
 
 

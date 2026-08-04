@@ -17,6 +17,8 @@ display:
   draw_look: true
   draw_gender_age: true
 
+#yolov8용: weights: yolov8n.pt, conf_thresh: 0.5, track_thresh: 0.5
+#yolo26용: weights: yolo26n.pt, conf_thresh: 0.25, track_thresh: 0.35
 models:
   yolo:
     enabled: true
@@ -30,7 +32,7 @@ models:
   tracker:
     track_thresh: 0.5         # 고신뢰도 검출 기준. 이상이면 1차 매칭, 미만(low_thresh 이상)이면 2차 매칭 대상
     track_buffer: 30          # 트랙이 미매칭 상태로 유지되는 최대 프레임 수 (buffer_size = fps/30 * track_buffer)
-    match_thresh: 0.3         # 트랙-검출 매칭 IoU 임계값 (기존 iou_threshold)
+    match_thresh: 0.8         # 트랙-검출 매칭 IoU 임계값 (기존 iou_threshold)
     mot20: false              # MOT20 데이터셋 전용 매칭 로직 사용 여부
     fps: 30                   # buffer_size 계산에 쓰이는 frame rate
     img_w: 1920               # 입력 영상 해상도 (ByteTrack 내부 좌표 스케일링/클리핑용)
@@ -79,7 +81,7 @@ logic:
   attention:
     threshold_deg: 30.0        # distance_adaptive 비활성/미설정 시 fallback
     distance_adaptive:
-      enabled: true            # 캘리브레이션 값 채운 뒤 true로
+      enabled: false            # 캘리브레이션 값 채운 뒤 true로
       ad_width_m: 1.0           # TODO: 실제 광고판 폭(m)으로 교체
       ad_height_m: 1.0          # TODO: 실제 광고판 높이(m)로 교체
       ref_distance_m: 1.0       # TODO: 기준 촬영 거리(m)
