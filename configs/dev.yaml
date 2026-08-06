@@ -88,6 +88,8 @@ logic:
       ref_face_height_px: 290.0  # TODO: 그 거리에서 측정한 얼굴 crop 평균 높이(px)
       min_threshold_deg: 5.0
       max_threshold_deg: 45.0
+      h_fov_deg: 73.7            # TODO: 실제 카메라(핸드폰) 수평 화각으로 교체
+      v_fov_deg: 45.7            # TODO: 실제 카메라(핸드폰) 수직 화각으로 교체
     hysteresis:
       enabled: true
       enter_frames: 3   # OFF->ON: raw True가 이 프레임 수만큼 연속돼야 확정 (30fps 기준 ~100ms)

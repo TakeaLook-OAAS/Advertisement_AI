@@ -67,6 +67,9 @@ class Orchestrator:
         self._stage_times: Dict[str, float] = defaultdict(float)
         self._stage_frame_count = 0
         self._STAGE_LOG_INTERVAL = 60
+        self._det_count_sum = 0
+        self._track_count_sum = 0
+        self._track_count_max = 0
 
     def process(self, frame) -> OrchestratorOutput:
         t0 = time.perf_counter()
@@ -105,7 +108,7 @@ class Orchestrator:
         t8 = time.perf_counter()
 
         # 9) 시선 판정 → track.look_result
-        tracks = self.look_judge.judge_batch(tracks)
+        tracks = self.look_judge.judge_batch(tracks, frame.shape[1], frame.shape[0])
         t9 = time.perf_counter()
 
         self._stage_times["yolo"] += t1 - t0
@@ -120,13 +123,25 @@ class Orchestrator:
         self._stage_times["total"] += t9 - t0
         self._stage_frame_count += 1
 
+        self._det_count_sum += len(dets)
+        self._track_count_sum += len(tracks)
+        self._track_count_max = max(self._track_count_max, len(tracks))
+
         if self._stage_frame_count >= self._STAGE_LOG_INTERVAL:
             parts = ", ".join(
                 f"{name}={self._stage_times[name] / self._stage_frame_count * 1000:.1f}ms"
                 for name in ["yolo", "track", "face", "mivolo", "headpose", "eye", "gaze", "roi", "look_judge", "total"]
             )
-            logger.info(f"[Orchestrator] stage avg/frame ({self._stage_frame_count} frames): {parts}")
+            avg_dets = self._det_count_sum / self._stage_frame_count
+            avg_tracks = self._track_count_sum / self._stage_frame_count
+            logger.info(
+                f"[Orchestrator] stage avg/frame ({self._stage_frame_count} frames): {parts} | "
+                f"dets_avg={avg_dets:.1f}, tracks_avg={avg_tracks:.1f}, tracks_max={self._track_count_max}"
+            )
             self._stage_times.clear()
             self._stage_frame_count = 0
+            self._det_count_sum = 0
+            self._track_count_sum = 0
+            self._track_count_max = 0
 
         return OrchestratorOutput(dets=dets, tracks=tracks)
