@@ -16,7 +16,8 @@ from collections import defaultdict
 from dataclasses import dataclass
 from typing import Any, Dict, List
 from loguru import logger
-from src.models.bytetrack_tracker import OfficialByteTrackAdapter
+#from src.models.bytetrack_tracker import OfficialByteTrackAdapter
+from src.models.ocsort_tracker import OCSortAdapter
 from src.models.face_yolov8 import FaceDetector
 from src.models.yolo_detector import YoloDetector
 from src.models.mivolo_attr import MiVOLOAttr
@@ -54,7 +55,8 @@ class Orchestrator:
         tracker_cfg = dict(cfg.get("models", {}).get("tracker", {}))
         frame_skip = int(cfg.get("pipeline", {}).get("frame_skip", 1))
         tracker_cfg["fps"] = tracker_cfg.get("fps", 30) / frame_skip
-        self.tracker = OfficialByteTrackAdapter(tracker_cfg)
+        #self.tracker = OfficialByteTrackAdapter(tracker_cfg)
+        self.tracker = OCSortAdapter(tracker_cfg)
         self.mivolo = MiVOLOAttr(cfg.get("models", {}).get("mivolo", {}))
         self.headpose = HeadPoseEstimator(cfg.get("models", {}).get("headpose", {}))
 

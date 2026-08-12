@@ -60,6 +60,32 @@ gaze:
       path: "weights/gaze/gaze_pytorch.pth"
       device: "cuda"              # PyTorch: cpu / cuda
 
+tracker:
+  video: "data/samples/FHD_test14.mp4"  # 벤치마크에 쓸 샘플 영상
+  max_frames: 300                            # 처리할 최대 프레임 수 (0이면 전체)
+  yolo:
+    weights: "weights/yolo/yolov8n.pt"
+    device: "cuda"
+    conf_thresh: 0.5
+    iou_thresh: 0.45
+    imgsz: 640
+    classes: [0]                             # 0 = person (COCO)
+  trackers:
+    bytetrack:
+      track_thresh: 0.5
+      track_buffer: 30
+      match_thresh: 0.8
+      mot20: false
+      fps: 30
+    ocsort:
+      det_thresh: 0.6
+      max_age: 30
+      min_hits: 3
+      iou_threshold: 0.3
+      delta_t: 3
+      inertia: 0.2
+      use_byte: true
+
 eye:
   data_dir: "data/benchmark/eye"
   images_dir: "data/train/WFLW_images"

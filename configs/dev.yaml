@@ -37,6 +37,7 @@ models:
     fps: 30                   # buffer_size 계산에 쓰이는 frame rate
     img_w: 1920               # 입력 영상 해상도 (ByteTrack 내부 좌표 스케일링/클리핑용)
     img_h: 1080
+    det_thresh: 0.6
   face:
     device: "cuda"
     #device: "CPU"            # openvino면 대문자, yolo면 소문자

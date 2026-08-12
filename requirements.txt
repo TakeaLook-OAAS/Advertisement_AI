@@ -22,6 +22,9 @@ timm==0.8.13.dev0
 # ByteTrack (linear assignment)
 lapx==0.5.2
 
+# OC-SORT (kalmanfilter.py의 filterpy.stats/common 유틸 의존)
+filterpy==1.4.5
+
 # YOLO detection
 ultralytics==8.4.14
 

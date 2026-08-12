@@ -131,7 +131,7 @@ class OfficialByteTrackAdapter:
     """
 
     def __init__(self, cfg: Dict[str, Any]):
-        from src.models.tracker.byte_tracker import BYTETracker
+        from src.models.trackers.bytetrack.byte_tracker import BYTETracker
 
         self._args = SimpleNamespace(
             track_thresh=float(cfg.get("track_thresh", 0.5)),
