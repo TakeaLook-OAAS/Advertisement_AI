@@ -5,7 +5,6 @@ from __future__ import annotations
 import math
 from dataclasses import replace
 from typing import Any, Dict, List, Optional
-from loguru import logger
 from src.utils.types import Gaze, LookResult, Track
 
 
@@ -20,6 +19,11 @@ class LookJudge:
     distance_adaptive가 활성화되면, 얼굴 crop 높이(px)로 거리를 추정하고
     광고판 실제 폭(ad_width_m)이 그 거리에서 차지하는 각도로 threshold_deg를 매 프레임 재계산한다.
     비활성화(기본값)면 기존과 동일하게 고정 threshold_deg를 사용한다.
+
+    또한 얼굴 bbox가 화면 중앙에서 얼마나 벗어나 있는지(카메라 화각 기준 좌우/상하 각도)를 계산해서,
+    비교 기준 방향을 카메라 정면(0,0,-1) 대신 "그 사람 위치에서 광고판을 보는 방향"으로 이동시킨다.
+    (카메라 정면만 기준으로 삼으면, 화면 가장자리에 있는 사람은 실제로 광고판을 보고 있어도
+    광고판이 있는 방향과 어긋나 오판정될 수 있음)
     """
 
     def __init__(self, cfg: Dict[str, Any]):
@@ -33,6 +37,9 @@ class LookJudge:
         self.ref_face_height_px = float(da_cfg.get("ref_face_height_px", 30.0))
         self.min_threshold_deg = float(da_cfg.get("min_threshold_deg", 5.0))
         self.max_threshold_deg = float(da_cfg.get("max_threshold_deg", 45.0))
+        # bbox 중심 픽셀 위치 -> 좌우/상하 offset 각도로 변환할 때 쓰는 카메라 화각
+        self.h_fov_deg = float(da_cfg.get("h_fov_deg", 70.0))
+        self.v_fov_deg = float(da_cfg.get("v_fov_deg", 50.0))
 
         # 히스테리시스: 프레임 단위 raw 판정의 노이즈를 완충 (진입/이탈에 각각 다른 연속 프레임 수 요구)
         hyst_cfg = cfg.get("hysteresis", {})
@@ -58,7 +65,28 @@ class LookJudge:
         v_deg = max(self.min_threshold_deg, min(self.max_threshold_deg, v_deg))
         return h_deg, v_deg
 
-    def judge(self, gaze: Gaze, face_height_px: Optional[float] = None) -> LookResult:
+    def _offset_deg_from_center(
+        self, cx: float, cy: float, frame_w: int, frame_h: int
+    ) -> tuple[float, float]:
+        """
+        얼굴 bbox 중심 픽셀 좌표 -> 카메라 광축 기준 좌우/상하 offset 각도(부호 있음).
+        offset_deg_x: 화면 오른쪽이면 +, 왼쪽이면 -
+        offset_deg_y: 화면 아래쪽이면 +, 위쪽이면 -
+        (화면 중앙이면 둘 다 0)
+        """
+        norm_x = (cx - frame_w / 2.0) / (frame_w / 2.0)
+        norm_y = (cy - frame_h / 2.0) / (frame_h / 2.0)
+        offset_deg_x = norm_x * (self.h_fov_deg / 2.0)
+        offset_deg_y = norm_y * (self.v_fov_deg / 2.0)
+        return offset_deg_x, offset_deg_y
+
+    def judge(
+        self,
+        gaze: Gaze,
+        face_height_px: Optional[float] = None,
+        offset_deg_x: float = 0.0,
+        offset_deg_y: float = 0.0,
+    ) -> LookResult:
         gx, gy, gz = gaze.x, gaze.y, gaze.z
         fx, fy, fz = _FRONT
 
@@ -80,13 +108,17 @@ class LookJudge:
 
             horizontal_deg = math.degrees(math.atan2(gx, -gz))
             vertical_deg = math.degrees(math.atan2(gy, -gz))
-            is_looking = abs(horizontal_deg) <= h_threshold and abs(vertical_deg) <= v_threshold
 
-            logger.debug(
-                f"[LookJudge] distance_m={distance_m:.2f} h_threshold={h_threshold:.1f} "
-                f"v_threshold={v_threshold:.1f} horizontal_deg={horizontal_deg:.1f} "
-                f"vertical_deg={vertical_deg:.1f} is_looking={is_looking}"
-            )  # TEMP: distance_adaptive 검증용
+            # 카메라 정면(0,0,-1)이 아니라, 이 사람 위치에서 광고판을 보는 방향을 기준으로 비교.
+            # 화면 오른쪽에 있는 사람(offset_deg_x>0)은 광고판이 상대적으로 왼쪽에 있으므로
+            # target_h_deg가 음수 쪽으로 이동 (왼쪽을 봐야 "본다"로 판정됨).
+            target_h_deg = -offset_deg_x
+            target_v_deg = offset_deg_y
+
+            is_looking = (
+                abs(horizontal_deg - target_h_deg) <= h_threshold
+                and abs(vertical_deg - target_v_deg) <= v_threshold
+            )
 
             return LookResult(
                 is_looking=is_looking,
@@ -132,14 +164,20 @@ class LookJudge:
 
         return state["smoothed"]
 
-    def judge_track(self, track: Track) -> Track:
+    def judge_track(self, track: Track, frame_w: int = 0, frame_h: int = 0) -> Track:
         """track.gaze로 판정하여 track.look_result에 채웁니다. gaze가 없으면(측정 실패) None으로 둡니다."""
         if track.gaze is None:
             track.look_result = None
             return track
 
         face_height_px = track.crop_bbox.h() if track.crop_bbox is not None else None
-        result = self.judge(track.gaze, face_height_px)
+
+        offset_deg_x, offset_deg_y = 0.0, 0.0
+        if self.distance_adaptive_enabled and track.crop_bbox is not None and frame_w > 0 and frame_h > 0:
+            cx, cy = track.crop_bbox.center()
+            offset_deg_x, offset_deg_y = self._offset_deg_from_center(cx, cy, frame_w, frame_h)
+
+        result = self.judge(track.gaze, face_height_px, offset_deg_x, offset_deg_y)
 
         if self.hysteresis_enabled:
             smoothed = self._apply_hysteresis(track.track_id, result.is_looking)
@@ -151,9 +189,9 @@ class LookJudge:
         track.look_result = result
         return track
 
-    def judge_batch(self, tracks: List[Track]) -> List[Track]:
+    def judge_batch(self, tracks: List[Track], frame_w: int = 0, frame_h: int = 0) -> List[Track]:
         """각 track.gaze로 판정하여 track.look_result에 채웁니다."""
-        result = [self.judge_track(t) for t in tracks]
+        result = [self.judge_track(t, frame_w, frame_h) for t in tracks]
 
         if self.hysteresis_enabled:
             active_ids = {t.track_id for t in tracks}

@@ -1,11 +1,11 @@
 # Dev overrides
 #device_id: "cam_01"
 device_id: "dddddddd-0000-0000-0000-000000000001"
-source: "data/samples/20260716_165147.mp4"
+source: "data/samples/test.mp4"
 
 display:
   output_video: false
-  output_video_path: "data/output/output_20260716_165147(1).mp4"
+  output_video_path: "data/output/output_test.mp4"
   font_scale: 0.7
   thickness: 2
   draw_bbox: true
@@ -37,6 +37,7 @@ models:
     fps: 30                   # buffer_size 계산에 쓰이는 frame rate
     img_w: 1920               # 입력 영상 해상도 (ByteTrack 내부 좌표 스케일링/클리핑용)
     img_h: 1080
+    det_thresh: 0.6
   face:
     device: "cuda"
     #device: "CPU"            # openvino면 대문자, yolo면 소문자
@@ -88,6 +89,8 @@ logic:
       ref_face_height_px: 290.0  # TODO: 그 거리에서 측정한 얼굴 crop 평균 높이(px)
       min_threshold_deg: 5.0
       max_threshold_deg: 45.0
+      h_fov_deg: 73.7            # TODO: 실제 카메라(핸드폰) 수평 화각으로 교체
+      v_fov_deg: 45.7            # TODO: 실제 카메라(핸드폰) 수직 화각으로 교체
     hysteresis:
       enabled: true
       enter_frames: 3   # OFF->ON: raw True가 이 프레임 수만큼 연속돼야 확정 (30fps 기준 ~100ms)

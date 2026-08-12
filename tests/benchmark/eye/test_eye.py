@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import json
 import os
+import time
 from typing import Any, Dict, List, Tuple
 
 import cv2
@@ -63,11 +64,11 @@ def bench_eye(
     device: str,
     images_dir: str,
     labels: List[Dict[str, Any]],
-) -> Tuple[float, float]:
+) -> Tuple[float, float, float]:
     """
     EyeDetector 하나를 평가한다.
     backend: "openvino" | "pytorch"
-    Returns: (mean_iou, median_iou)
+    Returns: (mean_iou, median_iou, avg_time_ms)
     """
     if backend == "openvino":
         from src.models.openvino.eye_openvino import EyeDetector
@@ -77,6 +78,7 @@ def bench_eye(
     detector = EyeDetector({"weights": weights, "device": device})
 
     ious: List[float] = []
+    call_times: List[float] = []
 
     for item in labels:
         img_path = os.path.join(images_dir, item["image"])
@@ -89,7 +91,9 @@ def bench_eye(
         face_bbox = BBoxXYXY(x1=fb["x1"], y1=fb["y1"], x2=fb["x2"], y2=fb["y2"])
 
         track = Track(track_id=0, bbox=face_bbox, crop_bbox=face_bbox)
+        t0 = time.perf_counter()
         track = detector.detect(frame, track)
+        call_times.append(time.perf_counter() - t0)
         if track.left_eye is None or track.right_eye is None:
             continue
 
@@ -99,9 +103,10 @@ def bench_eye(
         ious.append(box_iou(track.left_eye, gt_left))
         ious.append(box_iou(track.right_eye, gt_right))
 
+    avg_time_ms = float(np.mean(call_times)) * 1000 if call_times else 0.0
     if not ious:
-        return 0.0, 0.0
-    return float(np.mean(ious)), float(np.median(ious))
+        return 0.0, 0.0, avg_time_ms
+    return float(np.mean(ious)), float(np.median(ious)), avg_time_ms
 
 
 # ── 메인 ──────────────────────────────────────────────────────
@@ -121,7 +126,7 @@ def main() -> None:
         labels = json.load(f)
     logger.info(f"테스트 이미지 수: {len(labels)}")
 
-    results: Dict[str, Tuple[float, float]] = {}
+    results: Dict[str, Tuple[float, float, float]] = {}
     for name, w in cfg["weights"].items():
         path = w["path"]
         if not os.path.exists(path):
@@ -132,10 +137,10 @@ def main() -> None:
         results[name] = bench_eye(path, backend, w["device"], images_dir, labels)
 
     print("\n=== Eye bbox IoU 비교 (WFLW test set) ===")
-    print(f"{'모델':<10}  {'mean IoU':>10}  {'median IoU':>10}")
-    print("-" * 36)
-    for name, (mean, median) in results.items():
-        print(f"{name:<10}  {mean:>9.3f}  {median:>9.3f}")
+    print(f"{'모델':<10}  {'mean IoU':>10}  {'median IoU':>10}  {'avg ms':>10}")
+    print("-" * 48)
+    for name, (mean, median, avg_ms) in results.items():
+        print(f"{name:<10}  {mean:>9.3f}  {median:>9.3f}  {avg_ms:>9.2f}")
 
 
 if __name__ == "__main__":
