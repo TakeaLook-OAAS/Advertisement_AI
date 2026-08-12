@@ -73,23 +73,8 @@ def match_preds_to_gts(preds: List[BBoxXYXY], gts: List[BBoxXYXY], iou_thresh: f
     return matched, fp_idx, fn_idx
 
 
-def main() -> None:
-    from src.models.yolo_detector import YoloDetector
-
-    det_cfg, vis_cfg = load_config()
-    images_dir = os.path.join(det_cfg["data_dir"], det_cfg["images_subdir"])
-    labels_path = os.path.join(det_cfg["data_dir"], det_cfg["labels_file"])
-    iou_thresh = det_cfg["iou_thresh"]
-    yolo_cfg = det_cfg["yolo"]
-    out_dir = vis_cfg["out_dir"]
-
-    with open(labels_path, "r", encoding="utf-8") as f:
-        labels = json.load(f)
-
+def run_variant(detector, images_dir: str, labels: List[Dict[str, Any]], iou_thresh: float, out_dir: str) -> None:
     os.makedirs(out_dir, exist_ok=True)
-    logger.info(f"시각화 대상 이미지 수: {len(labels)}")
-
-    detector = YoloDetector(yolo_cfg)
     n_tp, n_fp, n_fn = 0, 0, 0
 
     for item in labels:
@@ -131,6 +116,41 @@ def main() -> None:
 
     logger.info(f"저장 완료: {out_dir}")
     logger.info(f"전체 합계  TP={n_tp}  FP={n_fp}  FN={n_fn}")
+
+
+def main() -> None:
+    from src.models.yolo_detector import YoloDetector
+
+    det_cfg, vis_cfg = load_config()
+    images_dir = os.path.join(det_cfg["data_dir"], det_cfg["images_subdir"])
+    labels_path = os.path.join(det_cfg["data_dir"], det_cfg["labels_file"])
+    iou_thresh = det_cfg["iou_thresh"]
+    base_out_dir = vis_cfg["out_dir"]
+
+    yolo_cfg = det_cfg["yolo"]
+    yolo_device = yolo_cfg.get("device", "cpu")
+    yolo_conf_thresh = yolo_cfg.get("conf", 0.5)
+    yolo_classes = yolo_cfg.get("classes", [0])
+
+    with open(labels_path, "r", encoding="utf-8") as f:
+        labels = json.load(f)
+
+    logger.info(f"시각화 대상 이미지 수: {len(labels)}")
+
+    for variant, w in yolo_cfg["weights"].items():
+        weights_path = w["path"]
+        if not os.path.exists(weights_path):
+            logger.warning(f"[{variant}] 가중치 없음: {weights_path} → 스킵")
+            continue
+
+        logger.info(f"[{variant}] 시각화 중... (weights={weights_path})")
+        detector = YoloDetector({
+            "weights": weights_path,
+            "device": yolo_device,
+            "conf_thresh": yolo_conf_thresh,
+            "classes": yolo_classes,
+        })
+        run_variant(detector, images_dir, labels, iou_thresh, os.path.join(base_out_dir, variant))
 
 
 if __name__ == "__main__":

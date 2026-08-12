@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import json
 import os
+import time
 from typing import Any, Dict, List, Tuple
 
 import cv2
@@ -111,8 +112,8 @@ def parse_bbox(d: Dict[str, int]) -> BBoxXYXY:
     return BBoxXYXY(x1=d["x1"], y1=d["y1"], x2=d["x2"], y2=d["y2"])
 
 
-# 평가 결과: (precision, recall, f1, avg_iou)
-Result = Tuple[float, float, float, float]
+# 평가 결과: (precision, recall, f1, avg_iou, avg_time_ms)
+Result = Tuple[float, float, float, float, float]
 
 
 # ── YOLO 벤치마크 ────────────────────────────────────────────
@@ -120,13 +121,14 @@ Result = Tuple[float, float, float, float]
 def bench_yolo(
     images_dir: str, labels: List[Dict[str, Any]], yolo_cfg: Dict[str, Any], iou_thresh: float
 ) -> Result:
-    """YOLO 모델 하나를 평가한다. Returns: (precision, recall, f1, avg_iou)"""
+    """YOLO 모델 하나를 평가한다. Returns: (precision, recall, f1, avg_iou, avg_time_ms)"""
     from src.models.yolo_detector import YoloDetector
 
     detector = YoloDetector(yolo_cfg)
 
     total_tp, total_fp, total_fn = 0, 0, 0
     all_ious: List[float] = []
+    call_times: List[float] = []
 
     for item in labels:
         img_path = os.path.join(images_dir, item["image"])
@@ -135,7 +137,10 @@ def bench_yolo(
             logger.warning(f"이미지 로드 실패: {img_path}")
             continue
 
+        t0 = time.perf_counter()
         dets = detector.detect(frame)
+        call_times.append(time.perf_counter() - t0)
+
         pred_boxes = [d.bbox for d in dets]
         gt_boxes = [parse_bbox(b) for b in item.get("persons", [])]
 
@@ -147,7 +152,8 @@ def bench_yolo(
 
     precision, recall, f1 = compute_metrics(total_tp, total_fp, total_fn)
     mean_iou = float(np.mean(all_ious)) if all_ious else 0.0
-    return precision, recall, f1, mean_iou
+    avg_time_ms = float(np.mean(call_times)) * 1000 if call_times else 0.0
+    return precision, recall, f1, mean_iou, avg_time_ms
 
 
 # ── Face 벤치마크 ────────────────────────────────────────────
@@ -162,10 +168,11 @@ def bench_face(
     conf_thresh: float = 0.5,
 ) -> Result:
     """FaceDetector 모델 하나를 평가한다. backend: "openvino" | "yolov8"
-    Returns: (precision, recall, f1, avg_iou)
+    Returns: (precision, recall, f1, avg_iou, avg_time_ms)
 
     주의: 정답 person bbox를 crop 입력으로 주는 '조건부' 평가다.
     (person 검출이 완벽하다는 전제하의 얼굴 검출 성능)
+    avg_time_ms는 detect() 1회 호출(얼굴 1개) 기준 평균이다.
     """
     if backend == "yolov8":
         from src.models.face_yolov8 import FaceDetector
@@ -177,6 +184,7 @@ def bench_face(
 
     total_tp, total_fp, total_fn = 0, 0, 0
     all_ious: List[float] = []
+    call_times: List[float] = []
 
     for item in labels:
         img_path = os.path.join(images_dir, item["image"])
@@ -192,7 +200,9 @@ def bench_face(
         for pb in gt_persons:
             person_bbox = parse_bbox(pb)
             track = Track(track_id=0, bbox=person_bbox)
+            t0 = time.perf_counter()
             track = detector.detect(frame, track)
+            call_times.append(time.perf_counter() - t0)
             if track.crop_bbox is not None:
                 pred_faces.append(track.crop_bbox)
 
@@ -204,16 +214,17 @@ def bench_face(
 
     precision, recall, f1 = compute_metrics(total_tp, total_fp, total_fn)
     mean_iou = float(np.mean(all_ious)) if all_ious else 0.0
-    return precision, recall, f1, mean_iou
+    avg_time_ms = float(np.mean(call_times)) * 1000 if call_times else 0.0
+    return precision, recall, f1, mean_iou, avg_time_ms
 
 
 # ── 결과 출력 ────────────────────────────────────────────────
 
 def print_result(title: str, result: Result) -> None:
-    p, r, f, i = result
+    p, r, f, i, t = result
     print(f"\n=== {title} ===")
-    print(f"  {'Precision':>10}{'Recall':>10}{'F1':>10}{'avg IoU':>10}")
-    print(f"  {p:>10.4f}{r:>10.4f}{f:>10.4f}{i:>10.4f}")
+    print(f"  {'Precision':>10}{'Recall':>10}{'F1':>10}{'avg IoU':>10}{'avg ms':>10}")
+    print(f"  {p:>10.4f}{r:>10.4f}{f:>10.4f}{i:>10.4f}{t:>10.2f}")
 
 
 # ── 메인 ─────────────────────────────────────────────────────
@@ -226,6 +237,12 @@ def main() -> None:
     iou_thresh = cfg["iou_thresh"]
 
     yolo_cfg = cfg["yolo"]
+    yolo_device = yolo_cfg.get("device", "cpu")
+    yolo_conf_thresh = yolo_cfg.get("conf", 0.5)
+    yolo_classes = yolo_cfg.get("classes", [0])
+    yolo_weights_v8 = yolo_cfg["weights"]["yolov8"]["path"]
+    yolo_weights_26 = yolo_cfg["weights"]["yolo26"]["path"]
+
     face_cfg = cfg["face"]
 
     face_conf_thresh = face_cfg.get("conf_thresh", 0.5)
@@ -245,7 +262,24 @@ def main() -> None:
     logger.info(f"테스트 이미지 수: {len(labels)}")
 
     logger.info("YOLO 평가 중...")
-    print_result("YOLO Person Detection", bench_yolo(images_dir, labels, yolo_cfg, iou_thresh))
+    if os.path.exists(yolo_weights_v8):
+        print_result(
+            "YOLO Person Detection - YOLOv8",
+            bench_yolo(
+                images_dir, labels,
+                {"weights": yolo_weights_v8, "device": yolo_device, "conf_thresh": yolo_conf_thresh, "classes": yolo_classes},
+                iou_thresh,
+            ),
+        )
+    if os.path.exists(yolo_weights_26):
+        print_result(
+            "YOLO Person Detection - YOLO26",
+            bench_yolo(
+                images_dir, labels,
+                {"weights": yolo_weights_26, "device": yolo_device, "conf_thresh": yolo_conf_thresh, "classes": yolo_classes},
+                iou_thresh,
+            ),
+        )
 
     logger.info("Face 평가 중...")
     if os.path.exists(face_weights_ov):

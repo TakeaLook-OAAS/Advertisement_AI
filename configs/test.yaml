@@ -33,11 +33,15 @@ detection:
   labels_file: "labels.json"
   iou_thresh: 0.5                            # TP 판정 IoU 기준
   yolo:
-    weights: "weights/yolo/yolov8n.pt"
-    device: "cpu"
-    #device: "cuda"
-    conf: 0.5                               # YOLO confidence threshold
+    #device: "cpu"
+    device: "cuda"
+    conf: 0.25                               # YOLO confidence threshold
     classes: [0]                            # 0 = person (COCO)
+    weights:
+      yolov8:
+        path: "weights/yolo/yolov8n.pt"
+      yolo26:
+        path: "weights/yolo/yolo26n.pt"
   face:
     conf_thresh: 0.5
     weights:
@@ -46,7 +50,8 @@ detection:
         device: "CPU"
       yolov8:
         path: "weights/face_detection/yolov8n-face-lindevs.pt"
-        device: "cpu"
+        #device: "cpu"
+        device: "cuda"
 
 gaze:
   data_dir: "data/benchmark/gaze"

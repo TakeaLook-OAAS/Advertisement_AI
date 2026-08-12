@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import json
 import os
+import time
 from typing import Any, Dict, List, Tuple
 
 import cv2
@@ -81,11 +82,11 @@ def bench_gaze(
     images_dir: str,
     labels: List[Dict[str, Any]],
     device: str = "CPU",
-) -> Tuple[float, float]:
+) -> Tuple[float, float, float]:
     """
     GazeDetector 모델 하나를 평가한다.
     backend: "openvino" | "pytorch"
-    Returns: (mean_error, median_error)
+    Returns: (mean_error, median_error, avg_time_ms)
     """
     if backend == "pytorch":
         from src.models.gaze.gaze_pytorch import GazeDetector
@@ -96,6 +97,7 @@ def bench_gaze(
     detector = GazeDetector(cfg)
 
     errors: List[float] = []
+    call_times: List[float] = []
 
     for item in labels:
         img_path = os.path.join(images_dir, item["image"])
@@ -121,7 +123,9 @@ def bench_gaze(
             headpose=headpose,
         )
 
+        t0 = time.perf_counter()
         track = detector.detect(frame, track)
+        call_times.append(time.perf_counter() - t0)
 
         if track.gaze is None:
             continue
@@ -133,7 +137,9 @@ def bench_gaze(
         err = angular_error(pred, gt)
         errors.append(err)
 
-    return compute_angular_stats(errors)
+    mean_err, median_err = compute_angular_stats(errors)
+    avg_time_ms = float(np.mean(call_times)) * 1000 if call_times else 0.0
+    return mean_err, median_err, avg_time_ms
 
 
 # ── 결과 출력 ────────────────────────────────────────────────
@@ -176,10 +182,10 @@ def main() -> None:
         results["PyTorch"] = bench_gaze(weights_pt, "pytorch", images_dir, labels, device_pt)
 
     print("\n=== Gaze Angular Error 비교 (degrees) ===")
-    print(f"{'모델':<12}  {'mean':>8}  {'median':>8}")
-    print("-" * 32)
-    for name, (mean, median) in results.items():
-        print(f"{name:<12}  {mean:>7.2f}°  {median:>7.2f}°")
+    print(f"{'모델':<12}  {'mean':>8}  {'median':>8}  {'avg ms':>8}")
+    print("-" * 42)
+    for name, (mean, median, avg_ms) in results.items():
+        print(f"{name:<12}  {mean:>7.2f}°  {median:>7.2f}°  {avg_ms:>7.2f}")
 
 
 if __name__ == "__main__":

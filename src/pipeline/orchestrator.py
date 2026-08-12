@@ -24,6 +24,8 @@ from src.models.mivolo_attr import MiVOLOAttr
 from src.models.headpose_6drepnet import HeadPoseEstimator
 from src.models.eye.eye_pytorch import EyeDetector
 from src.models.gaze.gaze_pytorch import GazeDetector
+#from src.models.openvino.eye_openvino import EyeDetector
+#from src.models.openvino.gaze_openvino import GazeDetector
 from src.logic.stay import StayTracker
 from src.logic.look_judge import LookJudge
 from src.utils.types import Det, FrameMeta, Track
@@ -129,7 +131,7 @@ class Orchestrator:
         self._track_count_sum += len(tracks)
         self._track_count_max = max(self._track_count_max, len(tracks))
 
-        if self._stage_frame_count >= self._STAGE_LOG_INTERVAL:
+        if self._stage_frame_count % self._STAGE_LOG_INTERVAL == 0:
             parts = ", ".join(
                 f"{name}={self._stage_times[name] / self._stage_frame_count * 1000:.1f}ms"
                 for name in ["yolo", "track", "face", "mivolo", "headpose", "eye", "gaze", "roi", "look_judge", "total"]
@@ -137,13 +139,8 @@ class Orchestrator:
             avg_dets = self._det_count_sum / self._stage_frame_count
             avg_tracks = self._track_count_sum / self._stage_frame_count
             logger.info(
-                f"[Orchestrator] stage avg/frame ({self._stage_frame_count} frames): {parts} | "
+                f"[Orchestrator] stage avg/frame ({self._stage_frame_count} frames total): {parts} | "
                 f"dets_avg={avg_dets:.1f}, tracks_avg={avg_tracks:.1f}, tracks_max={self._track_count_max}"
             )
-            self._stage_times.clear()
-            self._stage_frame_count = 0
-            self._det_count_sum = 0
-            self._track_count_sum = 0
-            self._track_count_max = 0
 
         return OrchestratorOutput(dets=dets, tracks=tracks)

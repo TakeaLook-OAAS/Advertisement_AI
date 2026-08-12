@@ -1,11 +1,11 @@
 # Dev overrides
 #device_id: "cam_01"
 device_id: "dddddddd-0000-0000-0000-000000000001"
-source: "data/samples/20260716_165147.mp4"
+source: "data/samples/test.mp4"
 
 display:
   output_video: false
-  output_video_path: "data/output/output_20260716_165147(1).mp4"
+  output_video_path: "data/output/output_test.mp4"
   font_scale: 0.7
   thickness: 2
   draw_bbox: true
