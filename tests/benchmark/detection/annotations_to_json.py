@@ -9,6 +9,7 @@ LabelImg에서 저장한 YOLO .txt 파일들을 labels.json으로 변환한다.
 """
 from __future__ import annotations
 
+import argparse
 import json
 import os
 from typing import Any, Dict, List
@@ -19,9 +20,9 @@ import yaml
 CONFIG_PATH = "configs/test.yaml"
 
 
-def load_config() -> Dict[str, Any]:
+def load_config(section: str) -> Dict[str, Any]:
     with open(CONFIG_PATH, "r", encoding="utf-8") as f:
-        return yaml.safe_load(f)["detection"]
+        return yaml.safe_load(f)[section]
 
 
 def load_classes(images_dir: str) -> Dict[int, str]:
@@ -57,6 +58,14 @@ def parse_txt(txt_path: str, img_w: int, img_h: int, classes: Dict[int, str]) ->
             if class_name == "person":
                 bbox["id"] = len(persons)
                 persons.append(bbox)
+            elif class_name == "person_looking":
+                bbox["id"] = len(persons)
+                bbox["looking"] = True
+                persons.append(bbox)
+            elif class_name == "person_not_looking":
+                bbox["id"] = len(persons)
+                bbox["looking"] = False
+                persons.append(bbox)
             elif class_name == "face":
                 bbox["id"] = len(faces)
                 faces.append(bbox)
@@ -65,7 +74,14 @@ def parse_txt(txt_path: str, img_w: int, img_h: int, classes: Dict[int, str]) ->
 
 
 def main() -> None:
-    cfg = load_config()
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "--section", default="detection",
+        help="configs/test.yaml 최상위 키 (detection | attention)",
+    )
+    args = parser.parse_args()
+
+    cfg = load_config(args.section)
     images_dir = os.path.join(cfg["data_dir"], cfg["images_subdir"])
     output_path = os.path.join(cfg["data_dir"], cfg["labels_file"])
 
