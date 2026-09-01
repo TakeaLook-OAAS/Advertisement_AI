@@ -8,8 +8,8 @@ Gaze 비교 시각화: GT(정답) vs 모델 예측
 두 화살표가 가까울수록 정확. 좌상단에 angular error(deg) 표시.
 오차가 큰 순으로도 따로 저장해 실패 케이스를 보기 쉽게 한다.
 
-설정: configs/test.yaml → gaze, visualize.gaze
-백엔드 선택: visualize.gaze.weights 아래에서 사용할 모델 섹션만 주석 해제
+설정: configs/test.yaml → gaze, gaze.visualize
+백엔드 선택: gaze.visualize.weights 아래에서 사용할 모델 섹션만 주석 해제
 
 사용법:
     python -m tests.benchmark.gaze.visualize_gaze
@@ -33,7 +33,7 @@ CONFIG_PATH = "configs/test.yaml"
 def load_config() -> Tuple[Dict[str, Any], Dict[str, Any]]:
     with open(CONFIG_PATH, "r", encoding="utf-8") as f:
         cfg = yaml.safe_load(f)
-    return cfg["gaze"], cfg["visualize"]["gaze"]
+    return cfg["gaze"], cfg["gaze"]["visualize"]
 
 
 def parse_bbox(d: Dict[str, int]) -> BBoxXYXY:

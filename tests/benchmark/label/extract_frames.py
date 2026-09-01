@@ -5,9 +5,9 @@
       --video / --all / --fps 는 CLI 인자로도 덮어쓸 수 있다.
 
 사용법:
-    python -m tests.benchmark.detection.extract_frames
-    python -m tests.benchmark.detection.extract_frames --video data/samples/test1.mp4 --fps 10
-    python -m tests.benchmark.detection.extract_frames --all --fps 10
+    python -m tests.benchmark.label.extract_frames
+    python -m tests.benchmark.label.extract_frames --video data/samples/test1.mp4 --fps 10
+    python -m tests.benchmark.label.extract_frames --all --fps 10
 """
 from __future__ import annotations
 
@@ -23,7 +23,7 @@ CONFIG_PATH = "configs/test.yaml"
 
 def load_config() -> Dict[str, Any]:
     with open(CONFIG_PATH, "r", encoding="utf-8") as f:
-        return yaml.safe_load(f)["extract_frames"]
+        return yaml.safe_load(f)["label"]["extract_frames"]
 
 
 def extract(video_path: str, fps: int, output_dir: str) -> int:
@@ -88,7 +88,7 @@ def main() -> None:
     print("  3. Change Save Dir → data/benchmark/detection/annotations")
     print("  4. 포맷을 PascalVOC(XML)로 설정")
     print("  5. 클래스: person, face 로 bbox 그리기")
-    print("  6. 완료 후: python -m tests.benchmark.annotations_to_json")
+    print("  6. 완료 후: python -m tests.benchmark.label.annotations_to_json")
 
 
 if __name__ == "__main__":

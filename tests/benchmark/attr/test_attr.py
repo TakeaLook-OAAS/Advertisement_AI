@@ -5,10 +5,13 @@
 사용법:
     python -m tests.benchmark.attr.test_attr
 
-데이터 구조:
-    data/benchmark/attr/
-    ├── images/         # 테스트 이미지
-    └── labels.json     # 정답 라벨
+데이터 구조 (detection/attention과 공유):
+    data/benchmark/detection/
+    ├── images/         # 테스트 이미지 (LabelImg: person_looking/person_not_looking/face)
+    └── labels.json     # annotations_to_json.py 가 생성, persons[].gender/age_group 을 사람이 채움
+
+persons[] 각 항목 중 gender 또는 age_group 이 채워져 있고, faces[] 에 id 가 매칭되는
+사람만 평가 대상이 된다.
 """
 from __future__ import annotations
 
@@ -91,26 +94,41 @@ def bench_mivolo(
     gt_ages: List[str] = []
 
     for item in labels:
+        faces_by_id = {f["id"]: f for f in item.get("faces", [])}
+
+        persons_to_eval = [
+            p for p in item.get("persons", [])
+            if p.get("gender") or p.get("age_group")
+        ]
+        if not persons_to_eval:
+            continue
+
         img_path = os.path.join(images_dir, item["image"])
         frame = cv2.imread(img_path)
         if frame is None:
             logger.warning(f"이미지 로드 실패: {img_path}")
             continue
 
-        person_bbox = parse_bbox(item["bbox"])
-        face_bbox = parse_bbox(item["face"])
-        track = Track(track_id=0, bbox=person_bbox, crop_bbox=face_bbox)
+        for person in persons_to_eval:
+            face = faces_by_id.get(person["id"])
+            if face is None:
+                continue
 
-        tracks = model.infer(frame, [track])
-        track = tracks[0]
+            person_bbox = parse_bbox(person)
+            face_bbox = parse_bbox(face)
+            track = Track(track_id=0, bbox=person_bbox, crop_bbox=face_bbox)
 
-        if track.attr is None:
-            continue
+            tracks = model.infer(frame, [track])
+            track = tracks[0]
+            if track.attr is None:
+                continue
 
-        pred_genders.append(track.attr.gender.value)
-        gt_genders.append(item["gender"])
-        pred_ages.append(track.attr.age_group.value)
-        gt_ages.append(item["age_group"])
+            if person.get("gender"):
+                pred_genders.append(track.attr.gender.value)
+                gt_genders.append(person["gender"])
+            if person.get("age_group"):
+                pred_ages.append(track.attr.age_group.value)
+                gt_ages.append(person["age_group"])
 
     gender_acc = compute_accuracy(pred_genders, gt_genders)
     gender_f1 = compute_f1(pred_genders, gt_genders)

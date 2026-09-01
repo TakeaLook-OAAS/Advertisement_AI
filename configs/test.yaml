@@ -2,30 +2,25 @@
 # tests/benchmark/ 아래 모든 스크립트(test_*, convert_*, visualize_*, 기타)가
 # 이 파일 하나에서 경로·파라미터를 읽는다.
 # CONFIG_PATH = "configs/test.yaml" 기준 (프로젝트 루트에서 실행)
+#
+# 섹션은 tests/benchmark/ 하위 폴더 순서와 동일하게 배치되어 있다:
+# label → detection → attr → attention → tracker → headpose → eye → gaze
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-#  벤치마크 테스트 (test_*.py)
+#  tests/benchmark/label/
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-headpose:
-  data_dir: "data/benchmark/headpose"        # 라벨/이미지 루트
-  images_subdir: "AFLW2000"                  # data_dir 아래 이미지 폴더
-  labels_file: "labels.json"                 # convert_aflw2000.py 가 생성
-  weights: "weights/headpose/6DRepNet_300W_LP_AFLW2000.pth"
-  #device: "cpu"                              # cpu / cuda
-  device: "cuda"
+label:
+  extract_frames:                              # extract_frames.py
+    output_dir: "data/benchmark/detection/labels"  # 추출된 프레임 저장 폴더
+    samples_dir: "data/samples/labels"              # 원본 영상 폴더
+  annotations_to_json:                          # annotations_to_json.py
+    images_dir: "data/benchmark/detection/images"      # 입력: 이미지 + .txt + classes.txt 폴더
+    output_path: "data/benchmark/detection/labels.json"  # 출력: 변환된 labels.json 경로
 
-attr:
-  data_dir: "data/benchmark/attr"
-  images_subdir: "images"
-  labels_file: "labels.json"
-  weights: "weights/age_gender/model_imdb_cross_person_4.22_99.46.pth"
-  #device: "cpu"
-  device: "cuda"
-  repo_root: "MiVOLO"                        # MiVOLO 저장소 루트 (임포트 경로)
-  min_face_size: 20                          # 이 크기 미만 얼굴 스킵 (px)
-  min_person_size: 40                        # 이 크기 미만 사람 스킵 (px)
-  use_persons: true
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+#  tests/benchmark/detection/
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 detection:
   data_dir: "data/benchmark/detection"
@@ -52,47 +47,41 @@ detection:
         path: "weights/face_detection/yolov8n-face-lindevs.pt"
         #device: "cpu"
         device: "cuda"
+  visualize:
+    bbox:                                    # visualize_bbox.py
+      out_dir: "data/benchmark/detection/bbox_check"  # YOLO 시각화 저장 폴더
+    face:                                    # visualize_face.py
+      out_dir: "data/benchmark/detection/face_check"  # Face 시각화 저장 폴더
+      weights:
+        #openvino:
+          #path: "weights/face_detection/face-detection-adas-0001.xml"
+          #device: "CPU"
+        yolov8:
+          path: "weights/face_detection/yolov8n-face-lindevs.pt"
+          device: "cpu"
 
-gaze:
-  data_dir: "data/benchmark/gaze"
-  images_dir: "data/train/MPIIFaceGaze"
-  labels_file: "labels_test.json"            # convert_mpiifacegaze.py 가 생성
-  weights:
-    openvino:
-      path: "weights/gaze/gaze-estimation-adas-0002.xml"
-      device: "CPU"              # OpenVINO: CPU / GPU
-    pytorch:
-      path: "weights/gaze/gaze_pytorch.pth"
-      device: "cuda"              # PyTorch: cpu / cuda
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+#  tests/benchmark/attr/
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-tracker:
-  video: "data/samples/test.mp4"  # 벤치마크에 쓸 샘플 영상
-  max_frames: 3000                            # 처리할 최대 프레임 수 (0이면 전체)
-  yolo:
-    weights: "weights/yolo/yolov8n.pt"
-    device: "cuda"
-    conf_thresh: 0.5
-    iou_thresh: 0.45
-    imgsz: 640
-    classes: [0]                             # 0 = person (COCO)
-  trackers:
-    bytetrack:
-      track_thresh: 0.5
-      track_buffer: 30
-      match_thresh: 0.8
-      mot20: false
-      fps: 30
-    ocsort:
-      det_thresh: 0.6
-      max_age: 30
-      min_hits: 3
-      iou_threshold: 0.3
-      delta_t: 3
-      inertia: 0.2
-      use_byte: true
+attr:
+  data_dir: "data/benchmark/detection"       # detection/attention과 동일 폴더 (labels.json 하나로 통합)
+  images_subdir: "images"
+  labels_file: "labels.json"
+  weights: "weights/age_gender/model_imdb_cross_person_4.22_99.46.pth"
+  #device: "cpu"
+  device: "cuda"
+  repo_root: "MiVOLO"                        # MiVOLO 저장소 루트 (임포트 경로)
+  min_face_size: 20                          # 이 크기 미만 얼굴 스킵 (px)
+  min_person_size: 40                        # 이 크기 미만 사람 스킵 (px)
+  use_persons: true
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+#  tests/benchmark/attention/
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 attention:
-  data_dir: "data/benchmark/attention"
+  data_dir: "data/benchmark/detection"       # detection/attr과 동일 폴더 (labels.json 하나로 통합)
   images_subdir: "images"
   labels_file: "labels.json"           # annotations_to_json.py 가 생성 (person_looking/person_not_looking/face 라벨)
   headpose:
@@ -121,6 +110,57 @@ attention:
     hysteresis:
       enabled: false                    # 독립된 정지 이미지라 연속 프레임 조건은 의미 없음 → raw 판정만 비교
 
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+#  tests/benchmark/tracker/
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+tracker:
+  video: "data/samples/test.mp4"  # 벤치마크에 쓸 샘플 영상
+  max_frames: 3000                            # 처리할 최대 프레임 수 (0이면 전체)
+  yolo:
+    weights: "weights/yolo/yolov8n.pt"
+    device: "cuda"
+    conf_thresh: 0.5
+    iou_thresh: 0.45
+    imgsz: 640
+    classes: [0]                             # 0 = person (COCO)
+  trackers:
+    bytetrack:
+      track_thresh: 0.5
+      track_buffer: 30
+      match_thresh: 0.8
+      mot20: false
+      fps: 30
+    ocsort:
+      det_thresh: 0.6
+      max_age: 30
+      min_hits: 3
+      iou_threshold: 0.3
+      delta_t: 3
+      inertia: 0.2
+      use_byte: true
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+#  tests/benchmark/headpose/
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+headpose:
+  data_dir: "data/benchmark/headpose"        # 라벨/이미지 루트
+  images_subdir: "AFLW2000"                  # data_dir 아래 이미지 폴더
+  labels_file: "labels.json"                 # convert_aflw2000.py 가 생성
+  weights: "weights/headpose/6DRepNet_300W_LP_AFLW2000.pth"
+  #device: "cpu"                              # cpu / cuda
+  device: "cuda"
+  convert:                                   # convert_aflw2000.py
+    source_dir: "data/benchmark/headpose/AFLW2000"  # .mat + .jpg 원본 폴더
+    output_path: "data/benchmark/headpose/labels.json"
+    yaw_limit: 99.0   # |yaw| > 이 값이면 제외 (6DRepNet 논문 기준)
+    padding: 0.20     # 랜드마크 bbox 확장 비율 (6DRepNet 논문 기준)
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+#  tests/benchmark/eye/
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
 eye:
   data_dir: "data/benchmark/eye"
   images_dir: "data/train/WFLW_images"
@@ -137,21 +177,21 @@ eye:
       device: "cuda"
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-#  변환 스크립트 (convert_*.py, annotations_to_json.py)
+#  tests/benchmark/gaze/
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-convert:
-  headpose:
-    source_dir: "data/benchmark/headpose/AFLW2000"  # .mat + .jpg 원본 폴더
-    output_path: "data/benchmark/headpose/labels.json"
-    yaw_limit: 99.0   # |yaw| > 이 값이면 제외 (6DRepNet 논문 기준)
-    padding: 0.20     # 랜드마크 bbox 확장 비율 (6DRepNet 논문 기준)
-
-  attr:
-    det_dir: "data/benchmark/detection"   # detection labels.json 루트
-    attr_dir: "data/benchmark/attr"       # 출력 attr labels.json + images/ 루트
-
-  gaze:
+gaze:
+  data_dir: "data/benchmark/gaze"
+  images_dir: "data/train/MPIIFaceGaze"
+  labels_file: "labels_test.json"            # convert_mpiifacegaze.py 가 생성
+  weights:
+    openvino:
+      path: "weights/gaze/gaze-estimation-adas-0002.xml"
+      device: "CPU"              # OpenVINO: CPU / GPU
+    pytorch:
+      path: "weights/gaze/gaze_pytorch.pth"
+      device: "cuda"              # PyTorch: cpu / cuda
+  convert:                                   # convert_mpiifacegaze.py
     mpiifacegaze_dir: "data/train/MPIIFaceGaze"
     subject: "p00"                        # 변환할 피험자 ID
     output_path: "data/benchmark/gaze/labels_test.json"
@@ -161,34 +201,7 @@ convert:
     eye_pad: 12                           # 눈 bbox 좌우 패딩 (px)
     eye_min_half: 18                      # 눈 bbox 최소 half 크기 (px)
     sample_every: 1                       # N 장마다 1장 샘플링 (1이면 전체 ~3700장)
-
-# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-#  프레임 추출 스크립트 (extract_frames.py)
-# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-extract_frames:
-  output_dir: "data/benchmark/detection/labels"  # 추출된 프레임 저장 폴더
-  samples_dir: "data/samples/labels"                    # 원본 영상 폴더
-
-# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-#  시각화 스크립트 (visualize_*.py, sweep_gaze_signs.py)
-# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-visualize:
-  detection_bbox:
-    out_dir: "data/benchmark/detection/bbox_check"  # YOLO 시각화 저장 폴더
-
-  detection_face:
-    out_dir: "data/benchmark/detection/face_check"  # Face 시각화 저장 폴더
-    weights:
-      #openvino:
-        #path: "weights/face_detection/face-detection-adas-0001.xml"
-        #device: "CPU"
-      yolov8:
-        path: "weights/face_detection/yolov8n-face-lindevs.pt"
-        device: "cpu"
-
-  gaze:
+  visualize:                                 # visualize_gaze.py
     weights:
       #openvino:
         #path: "weights/gaze/gaze-estimation-adas-0002.xml"
@@ -200,3 +213,4 @@ visualize:
     num_to_save: 40      # 순서대로 저장할 장 수
     num_worst: 10        # 오차 큰 순으로 따로 저장할 장 수
     arrow_scale: 120.0   # 화살표 픽셀 길이 스케일
+  # sweep_gaze_signs.py 는 위 gaze 섹션(data_dir/images_dir/labels_file/weights)을 읽는다

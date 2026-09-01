@@ -6,7 +6,7 @@ test_headpose.py 가 읽는 labels.json 포맷으로 저장한다.
 
 필터: |yaw| > 99° 샘플 제외 (6DRepNet 논문 평가 기준과 동일)
 
-설정: configs/test.yaml → convert.headpose
+설정: configs/test.yaml → headpose.convert
 
 사용법:
     python -m tests.benchmark.headpose.convert_aflw2000
@@ -27,7 +27,7 @@ CONFIG_PATH = "configs/test.yaml"
 
 def load_config() -> Dict[str, Any]:
     with open(CONFIG_PATH, "r", encoding="utf-8") as f:
-        return yaml.safe_load(f)["convert"]["headpose"]
+        return yaml.safe_load(f)["headpose"]["convert"]
 
 
 def pt2d_to_bbox(pt2d: np.ndarray, img_w: int, img_h: int, padding: float) -> dict:

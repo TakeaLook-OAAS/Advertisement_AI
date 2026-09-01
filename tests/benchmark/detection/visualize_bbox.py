@@ -2,7 +2,7 @@
 YOLO person 검출 결과 시각화: 정답/예측 bbox를 이미지에 그려 저장한다.
 어떤 사람을 왜 놓쳤는지 눈으로 확인하는 용도.
 
-설정: configs/test.yaml → detection, visualize.detection_bbox
+설정: configs/test.yaml → detection, detection.visualize.bbox
 
 사용법:
     python -m tests.benchmark.detection.visualize_bbox
@@ -37,7 +37,7 @@ YELLOW = (0, 220, 220)
 def load_config() -> Dict[str, Any]:
     with open(CONFIG_PATH, "r", encoding="utf-8") as f:
         cfg = yaml.safe_load(f)
-    return cfg["detection"], cfg["visualize"]["detection_bbox"]
+    return cfg["detection"], cfg["detection"]["visualize"]["bbox"]
 
 
 def draw_box(img, box: BBoxXYXY, color, label: str = "") -> None:

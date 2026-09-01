@@ -2,8 +2,8 @@
 Face 검출 결과 시각화: 벤치마크(bench_face)와 동일한 조건으로 face를 검출하고,
 정답/예측 박스를 이미지에 그려 저장한다. 어떤 얼굴을 왜 놓쳤는지 눈으로 확인하는 용도.
 
-설정: configs/test.yaml → detection, visualize.detection_face
-백엔드 선택: visualize.detection_face.weights 아래에서 사용할 모델 섹션만 주석 해제
+설정: configs/test.yaml → detection, detection.visualize.face
+백엔드 선택: detection.visualize.face.weights 아래에서 사용할 모델 섹션만 주석 해제
 
 사용법:
     python -m tests.benchmark.detection.visualize_face
@@ -41,7 +41,7 @@ YELLOW = (0, 220, 220)
 def load_config() -> Dict[str, Any]:
     with open(CONFIG_PATH, "r", encoding="utf-8") as f:
         cfg = yaml.safe_load(f)
-    return cfg["detection"], cfg["visualize"]["detection_face"]
+    return cfg["detection"], cfg["detection"]["visualize"]["face"]
 
 
 def detect_faces(detector, frame, gt_persons: List[Dict[str, int]]) -> List[BBoxXYXY]:
