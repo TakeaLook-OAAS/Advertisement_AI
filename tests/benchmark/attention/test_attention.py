@@ -8,8 +8,8 @@ Attention(시선) 최종 판정 벤치마크: 실제로 광고를 봤는지(GT) 
 사용법:
     python -m tests.benchmark.attention.test_attention
 
-데이터 구조:
-    data/benchmark/attention/
+데이터 구조 (detection/attr과 공유):
+    data/benchmark/detection/
     ├── images/         # LabelImg로 라벨링한 이미지 + .txt + classes.txt
     │                    # classes.txt: person_looking / person_not_looking / face
     └── labels.json      # annotations_to_json.py 가 생성
@@ -93,7 +93,7 @@ def main() -> None:
 
     if not os.path.exists(labels_path):
         logger.error(f"라벨 파일이 없습니다: {labels_path}")
-        logger.info("먼저 python -m tests.benchmark.detection.annotations_to_json 을 실행하세요.")
+        logger.info("먼저 python -m tests.benchmark.label.annotations_to_json 을 실행하세요.")
         return
 
     with open(labels_path, "r", encoding="utf-8") as f:

@@ -24,7 +24,7 @@ headpose:
   MPIIFaceGaze 어노테이션에 yaw/pitch/roll 오일러각이 없으므로
   6DRepNet(HeadPoseEstimator)으로 각 이미지에서 직접 추정한다.
 
-설정: configs/test.yaml → convert.gaze
+설정: configs/test.yaml → gaze.convert
 
 사용법:
     python -m tests.benchmark.gaze.convert_mpiifacegaze
@@ -48,7 +48,7 @@ CONFIG_PATH = "configs/test.yaml"
 
 def load_config() -> Dict[str, Any]:
     with open(CONFIG_PATH, "r", encoding="utf-8") as f:
-        return yaml.safe_load(f)["convert"]["gaze"]
+        return yaml.safe_load(f)["gaze"]["convert"]
 
 
 def make_eye_bbox(
