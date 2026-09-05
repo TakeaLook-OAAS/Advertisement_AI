@@ -231,9 +231,8 @@ def print_result(title: str, result: Result) -> None:
 
 def main() -> None:
     cfg = load_config()
-    data_dir = cfg["data_dir"]
-    images_dir = os.path.join(data_dir, cfg["images_subdir"])
-    labels_path = os.path.join(data_dir, cfg["labels_file"])
+    images_dir = cfg["images_dir"]
+    labels_path = os.path.join(cfg["labels_dir"], cfg["labels_file"])
     iou_thresh = cfg["iou_thresh"]
 
     yolo_cfg = cfg["yolo"]

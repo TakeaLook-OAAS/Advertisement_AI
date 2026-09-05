@@ -15,7 +15,7 @@ label:
     output_dir: "data/benchmark/detection/labels"  # 추출된 프레임 저장 폴더
     samples_dir: "data/samples/labels"              # 원본 영상 폴더
   annotations_to_json:                          # annotations_to_json.py
-    images_dir: "data/benchmark/detection/images"      # 입력: 이미지 + .txt + classes.txt 폴더
+    images_dir: "data/benchmark/detection/labels"      # 입력: 이미지 + .txt + classes.txt 폴더
     output_path: "data/benchmark/detection/labels.json"  # 출력: 변환된 labels.json 경로
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -23,8 +23,8 @@ label:
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 detection:
-  data_dir: "data/benchmark/detection"
-  images_subdir: "images"
+  images_dir: "data/benchmark/detection/labels"
+  labels_dir: "data/benchmark/detection"
   labels_file: "labels.json"
   iou_thresh: 0.5                            # TP 판정 IoU 기준
   yolo:
@@ -65,13 +65,15 @@ detection:
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 attr:
-  data_dir: "data/benchmark/detection"       # detection/attention과 동일 폴더 (labels.json 하나로 통합)
-  images_subdir: "images"
+  images_dir: "data/benchmark/detection/labels"  # detection/attention과 동일 폴더 (labels.json 하나로 통합)
+  labels_dir: "data/benchmark/detection"
   labels_file: "labels.json"
   weights: "weights/age_gender/model_imdb_cross_person_4.22_99.46.pth"
   #device: "cpu"
   device: "cuda"
-  repo_root: "MiVOLO"                        # MiVOLO 저장소 루트 (임포트 경로)
+  # repo_root 지정 안 함: MIVOLO_REPO_ROOT 환경변수(entrypoint_gpu.sh가 timm 호환 패치한
+  # /tmp/MiVOLO_gpu)로 폴백시킨다. 여기서 "MiVOLO"로 고정하면 패치 안 된 호스트 원본을 써서
+  # timm 1.0.3과 안 맞아 ImportError(remap_checkpoint)가 난다.
   min_face_size: 20                          # 이 크기 미만 얼굴 스킵 (px)
   min_person_size: 40                        # 이 크기 미만 사람 스킵 (px)
   use_persons: true
@@ -81,8 +83,8 @@ attr:
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 attention:
-  data_dir: "data/benchmark/detection"       # detection/attr과 동일 폴더 (labels.json 하나로 통합)
-  images_subdir: "images"
+  images_dir: "data/benchmark/detection/labels"  # detection/attr과 동일 폴더 (labels.json 하나로 통합)
+  labels_dir: "data/benchmark/detection"
   labels_file: "labels.json"           # annotations_to_json.py 가 생성 (person_looking/person_not_looking/face 라벨)
   headpose:
     weights: "weights/headpose/6DRepNet_300W_LP_AFLW2000.pth"
