@@ -122,8 +122,8 @@ def main() -> None:
     from src.models.yolo_detector import YoloDetector
 
     det_cfg, vis_cfg = load_config()
-    images_dir = os.path.join(det_cfg["data_dir"], det_cfg["images_subdir"])
-    labels_path = os.path.join(det_cfg["data_dir"], det_cfg["labels_file"])
+    images_dir = det_cfg["images_dir"]
+    labels_path = os.path.join(det_cfg["labels_dir"], det_cfg["labels_file"])
     iou_thresh = det_cfg["iou_thresh"]
     base_out_dir = vis_cfg["out_dir"]
 

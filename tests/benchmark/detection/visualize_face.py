@@ -93,8 +93,8 @@ def main() -> None:
     det_cfg, vis_cfg = load_config()
 
     backend = next(iter(vis_cfg["weights"]))
-    images_dir = os.path.join(det_cfg["data_dir"], det_cfg["images_subdir"])
-    labels_path = os.path.join(det_cfg["data_dir"], det_cfg["labels_file"])
+    images_dir = det_cfg["images_dir"]
+    labels_path = os.path.join(det_cfg["labels_dir"], det_cfg["labels_file"])
     iou_thresh = det_cfg["iou_thresh"]
     conf_thresh = det_cfg["face"].get("conf_thresh", 0.5)
     weights = vis_cfg["weights"][backend]["path"]

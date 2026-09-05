@@ -1,34 +1,40 @@
 """
-Attention(시선) 최종 판정 벤치마크: 실제로 광고를 봤는지(GT) vs 우리 파이프라인이
-봤다고 판정했는지(headpose→eye→gaze→look_judge)를 비교한다.
+Attention 판정 파이프라인에서 gaze vector 자리를 headpose(yaw/pitch)로 만든 벡터로
+갈아끼워서 실제 LookJudge로 판정해본다.
 
-라벨은 독립된 정지 이미지 기준이라 히스테리시스(연속 프레임 조건)는 적용하지 않고,
-프레임 단위 raw 판정만 비교한다.
+test_only_headpose.py와 다른 점: 거긴 hypot(yaw, pitch) <= threshold_deg로 직접 채점하는
+별도의 간이 로직이었다. 이 스크립트는 EyeDetector/GazeDetector만 빼고, 판정 자체는
+운영과 완전히 동일한 LookJudge.judge()를 그대로 쓴다 — distance_adaptive/threshold_deg
+설정(configs/test.yaml → attention.logic)도 그대로 적용된다.
+
+headpose -> gaze 벡터 변환:
+    gx = sin(yaw) * cos(pitch)
+    gy = sin(pitch)
+    gz = -cos(yaw) * cos(pitch)
+정면(yaw=pitch=0)이면 look_judge.py의 카메라 정면 벡터 (0,0,-1)과 일치하고, 항상 단위벡터다.
+distance_adaptive가 꺼져 있으면 전체 각도(angle_deg)만 threshold_deg와 비교하므로 좌우 부호는
+결과에 영향이 없다. distance_adaptive를 켜서 쓸 경우에만 gx의 좌우 부호가 horizontal_deg
+계산에 실제로 반영되니 주의(실제 gaze 모델의 좌우 부호 컨벤션과 일치하는지 별도 검증 필요).
+
+설정: configs/test.yaml → attention (기존 섹션 그대로 재사용, 별도 설정 불필요)
 
 사용법:
-    python -m tests.benchmark.attention.test_attention
-
-데이터 구조 (detection/attr과 공유):
-    data/benchmark/detection/
-    ├── images/         # LabelImg로 라벨링한 이미지 + .txt + classes.txt
-    │                    # classes.txt: person_looking / person_not_looking / face
-    └── labels.json      # annotations_to_json.py 가 생성
+    python -m tests.benchmark.attention.test_headpose_as_gaze
 """
 from __future__ import annotations
 
 import json
+import math
 import os
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 
 import cv2
 import yaml
 from loguru import logger
 
 from src.logic.look_judge import LookJudge
-from src.models.eye.eye_pytorch import EyeDetector
-from src.models.gaze.gaze_pytorch import GazeDetector
 from src.models.headpose_6drepnet import HeadPoseEstimator
-from src.utils.types import BBoxXYXY, Track
+from src.utils.types import BBoxXYXY, Gaze, HeadPose, Track
 
 CONFIG_PATH = "configs/test.yaml"
 
@@ -42,20 +48,28 @@ def parse_bbox(d: Dict[str, int]) -> BBoxXYXY:
     return BBoxXYXY(x1=d["x1"], y1=d["y1"], x2=d["x2"], y2=d["y2"])
 
 
+def headpose_to_gaze(hp: HeadPose) -> Gaze:
+    yaw = math.radians(hp.yaw)
+    pitch = math.radians(hp.pitch)
+    gx = math.sin(yaw) * math.cos(pitch)
+    gy = math.sin(pitch)
+    gz = -math.cos(yaw) * math.cos(pitch)
+    return Gaze(x=gx, y=gy, z=gz)
+
+
 def predict_is_looking(
     frame,
     person_bbox: BBoxXYXY,
     face_bbox: BBoxXYXY,
     headpose_model: HeadPoseEstimator,
-    eye_model: EyeDetector,
-    gaze_model: GazeDetector,
     look_judge: LookJudge,
-) -> bool:
+) -> Optional[bool]:
     track = Track(track_id=0, bbox=person_bbox, crop_bbox=face_bbox)
-
     track = headpose_model.infer(frame, track)
-    track = eye_model.detect(frame, track)
-    track = gaze_model.detect(frame, track)
+    if track.headpose is None:
+        return None
+
+    gaze = headpose_to_gaze(track.headpose)
 
     face_height_px = face_bbox.h()
     offset_deg_x, offset_deg_y = 0.0, 0.0
@@ -65,7 +79,7 @@ def predict_is_looking(
             cx, cy, frame.shape[1], frame.shape[0]
         )
 
-    result = look_judge.judge(track.gaze, face_height_px, offset_deg_x, offset_deg_y)
+    result = look_judge.judge(gaze, face_height_px, offset_deg_x, offset_deg_y)
     return result.is_looking
 
 
@@ -76,20 +90,17 @@ def main() -> None:
 
     if not os.path.exists(labels_path):
         logger.error(f"라벨 파일이 없습니다: {labels_path}")
-        logger.info("먼저 python -m tests.benchmark.label.annotations_to_json 을 실행하세요.")
         return
 
     with open(labels_path, "r", encoding="utf-8") as f:
         labels = json.load(f)
 
     headpose_model = HeadPoseEstimator(cfg["headpose"])
-    eye_model = EyeDetector(cfg["eye"])
-    gaze_model = GazeDetector(cfg["gaze"])
     look_judge = LookJudge(cfg["logic"])
 
     tp = fp = tn = fn = 0
     no_face_match = 0
-    no_gt_label = 0
+    no_headpose = 0
 
     for item in labels:
         img_path = os.path.join(images_dir, item["image"])
@@ -102,7 +113,6 @@ def main() -> None:
 
         for p in item.get("persons", []):
             if "looking" not in p:
-                no_gt_label += 1
                 continue
 
             face = faces_by_id.get(p["id"])
@@ -110,13 +120,14 @@ def main() -> None:
                 no_face_match += 1
                 continue
 
-            person_bbox = parse_bbox(p)
             pred = predict_is_looking(
-                frame, person_bbox, parse_bbox(face),
-                headpose_model, eye_model, gaze_model, look_judge,
+                frame, parse_bbox(p), parse_bbox(face), headpose_model, look_judge,
             )
-            gt = bool(p["looking"])
+            if pred is None:
+                no_headpose += 1
+                continue
 
+            gt = bool(p["looking"])
             if gt and pred:
                 tp += 1
             elif gt and not pred:
@@ -132,8 +143,9 @@ def main() -> None:
     recall = tp / (tp + fn) if (tp + fn) else 0.0
     f1 = 2 * precision * recall / (precision + recall) if (precision + recall) else 0.0
 
-    print("\n=== Attention 판정 벤치마크 (raw, hysteresis 없음) ===")
-    print(f"  평가 대상: {total}명 (얼굴 매칭 실패 {no_face_match}명, GT looking 라벨 없음 {no_gt_label}명 제외)")
+    da = "ON" if look_judge.distance_adaptive_enabled else "OFF"
+    print(f"\n=== Attention 판정 벤치마크 (gaze 자리에 headpose 벡터 대입, distance_adaptive={da}) ===")
+    print(f"  평가 대상: {total}명 (얼굴 매칭 실패 {no_face_match}명, headpose 추정 실패 {no_headpose}명 제외)")
     print(f"\n  {'':>12}  pred_looking  pred_not_looking")
     print(f"  {'gt_looking':>12}  {tp:>12}  {fn:>16}")
     print(f"  {'gt_not_looking':>12}  {fp:>12}  {tn:>16}")

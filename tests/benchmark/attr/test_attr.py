@@ -85,13 +85,15 @@ def bench_mivolo(
     """
     from src.models.mivolo_attr import MiVOLOAttr
 
-    cfg = {**model_cfg, "model": weights}
+    cfg = {**model_cfg, "weights": weights}
     model = MiVOLOAttr(cfg)
 
     pred_genders: List[str] = []
     gt_genders: List[str] = []
     pred_ages: List[str] = []
     gt_ages: List[str] = []
+
+    next_track_id = 0
 
     for item in labels:
         faces_by_id = {f["id"]: f for f in item.get("faces", [])}
@@ -116,7 +118,11 @@ def bench_mivolo(
 
             person_bbox = parse_bbox(person)
             face_bbox = parse_bbox(face)
-            track = Track(track_id=0, bbox=person_bbox, crop_bbox=face_bbox)
+            # MiVOLOAttr은 track_id별로 vote_n번 추론되면 다수결 결과를 캐싱해서 재사용한다
+            # (연속 프레임의 동일 인물이라는 전제). 벤치마크의 각 person은 서로 무관한 사람이므로
+            # track_id를 고유하게 줘야 캐시가 섞이지 않는다.
+            track = Track(track_id=next_track_id, bbox=person_bbox, crop_bbox=face_bbox)
+            next_track_id += 1
 
             tracks = model.infer(frame, [track])
             track = tracks[0]
@@ -151,17 +157,19 @@ def print_result(result: Tuple[float, float, float, float]) -> None:
 
 def main() -> None:
     cfg = load_config()
-    data_dir = cfg["data_dir"]
-    images_dir = os.path.join(data_dir, cfg["images_subdir"])
-    labels_path = os.path.join(data_dir, cfg["labels_file"])
+    images_dir = cfg["images_dir"]
+    labels_path = os.path.join(cfg["labels_dir"], cfg["labels_file"])
     weights = cfg["weights"]
     model_cfg = {
         "device": cfg["device"],
-        "repo_root": cfg["repo_root"],
         "min_face_size": cfg["min_face_size"],
         "min_person_size": cfg["min_person_size"],
         "use_persons": cfg["use_persons"],
     }
+    # repo_root를 명시하지 않으면 MiVOLOAttr이 MIVOLO_REPO_ROOT 환경변수로 폴백한다
+    # (entrypoint_gpu.sh가 timm 호환 패치를 해둔 /tmp/MiVOLO_gpu).
+    if cfg.get("repo_root"):
+        model_cfg["repo_root"] = cfg["repo_root"]
 
     if not os.path.exists(labels_path):
         logger.error(f"라벨 파일이 없습니다: {labels_path}")
