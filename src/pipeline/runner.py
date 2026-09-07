@@ -33,6 +33,7 @@ def run_loop(cfg: Dict[str, Any], source: Union[int, str], orch) -> None:
     show_gaze = bool(disp_cfg.get("draw_gaze", True))               # gaze + gaze vector 표시
     show_look = bool(disp_cfg.get("draw_look", True))               # LookResult 표시
     show_gender_age = bool(disp_cfg.get("draw_gender_age", True))   # gender, age_group 표시
+    show_window = bool(disp_cfg.get("show_window", False))          # 실시간 미리보기 창
 
     # ── 비디오 출력 설정(output) ──────────────────────────────────────────
     out_cfg = cfg.get("output", {})
@@ -58,11 +59,19 @@ def run_loop(cfg: Dict[str, Any], source: Union[int, str], orch) -> None:
     logger.info(f"Ad cycle: {len(durations_s)} segments, json_dir={json_dir}")
 
     writer = None
+    writer_pending = False       # 라이브 소스: 실제 처리 FPS 측정 후 writer 생성
+    measure_ts: list[float] = []
     if output_video:
         os.makedirs(os.path.dirname(output_path), exist_ok=True)    # 출력 폴더 자동 생성
-        fourcc = cv2.VideoWriter_fourcc(*"mp4v")
-        writer = cv2.VideoWriter(output_path, fourcc, vs.fps, (vs.width, vs.height))
-        logger.info(f"Video output enabled: {output_path}")
+        if vs.is_live:
+            # 웹캠은 vs.fps(30)로 저장하면 처리 속도가 느려 빨리감기 영상이 됨.
+            # 처음 몇 초로 실제 처리 FPS를 재고 그 값으로 writer를 만든다.
+            writer_pending = True
+            logger.info("Video output: measuring real FPS before recording...")
+        else:
+            fourcc = cv2.VideoWriter_fourcc(*"mp4v")
+            writer = cv2.VideoWriter(output_path, fourcc, vs.fps, (vs.width, vs.height))
+            logger.info(f"Video output enabled: {output_path}")
 
     start_time = time.time()  # 전체 처리 시간 측정용
     last = time.time()  # FPS 계산용 타이머
@@ -134,8 +143,19 @@ def run_loop(cfg: Dict[str, Any], source: Union[int, str], orch) -> None:
             if dt > 0:
                 fps = 1.0 / dt
 
-            # draw + 비디오 기록 (output_video=false면 스킵)
-            if writer is not None:
+            # 라이브 소스: 처음 ~3초로 실제 처리 FPS를 재고 그 값으로 writer 생성
+            if writer_pending:
+                measure_ts.append(now)
+                span = measure_ts[-1] - measure_ts[0]
+                if span >= 3.0 and len(measure_ts) >= 10:
+                    real_fps = max(1.0, min((len(measure_ts) - 1) / span, 60.0))
+                    fourcc = cv2.VideoWriter_fourcc(*"mp4v")
+                    writer = cv2.VideoWriter(output_path, fourcc, real_fps, (vs.width, vs.height))
+                    writer_pending = False
+                    logger.info(f"Video output enabled: {output_path} (measured fps={real_fps:.2f})")
+
+            # draw (writer 또는 preview 중 하나라도 켜지면 수행)
+            if writer is not None or show_window:
                 if show_bbox:           # bbox + ID
                     draw_tracks(frame, out.tracks, font_scale, thickness)
                 if show_crop_bbox:      # face bbox
@@ -150,7 +170,15 @@ def run_loop(cfg: Dict[str, Any], source: Union[int, str], orch) -> None:
                     draw_look(frame, out.tracks, font_scale, thickness)
                 if show_gender_age:     # gender, age_group
                     draw_gender_age(frame, out.tracks, font_scale, thickness)
+
+            if writer is not None:
                 writer.write(frame)
+
+            if show_window:
+                cv2.imshow("Advertisement AI", frame)
+                if cv2.waitKey(1) & 0xFF in (ord("q"), 27):   # q 또는 ESC 로 종료
+                    logger.info("Preview closed by user.")
+                    break
 
     finally:
         # 스트림 종료 시 마지막 상태 마감
@@ -171,6 +199,9 @@ def run_loop(cfg: Dict[str, Any], source: Union[int, str], orch) -> None:
         if writer is not None:
             writer.release()
             logger.info(f"Output video saved: {output_path}")
+
+        if show_window:
+            cv2.destroyAllWindows()
 
         vs.release()    # 동영상 파일 닫기
 
