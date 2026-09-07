@@ -7,7 +7,7 @@ loguru==0.7.3
 scipy==1.12.0
 
 # OpenVINO runtime (CPU)
-opencv-python-headless==4.10.0.84
+opencv-python==4.10.0.84
 openvino==2025.4.1
 opencv-stubs==0.1.2
 
@@ -20,7 +20,7 @@ sixdrepnet==0.1.6
 timm==0.8.13.dev0
 
 # ByteTrack (linear assignment)
-lapx==0.5.2
+lapx==0.5.11
 
 # OC-SORT (kalmanfilter.py의 filterpy.stats/common 유틸 의존)
 filterpy==1.4.5
