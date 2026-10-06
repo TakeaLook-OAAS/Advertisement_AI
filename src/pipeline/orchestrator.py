@@ -57,6 +57,7 @@ class Orchestrator:
         tracker_cfg = dict(cfg.get("models", {}).get("tracker", {}))
         frame_skip = int(cfg.get("pipeline", {}).get("frame_skip", 1))
         tracker_cfg["fps"] = tracker_cfg.get("fps", 30) / frame_skip
+        self._tracker_cfg = tracker_cfg     # reset() 시 트래커 재생성용
         #self.tracker = OfficialByteTrackAdapter(tracker_cfg)
         self.tracker = OCSortAdapter(tracker_cfg)
         self.mivolo = MiVOLOAttr(cfg.get("models", {}).get("mivolo", {}))
@@ -74,6 +75,17 @@ class Orchestrator:
         self._det_count_sum = 0
         self._track_count_sum = 0
         self._track_count_max = 0
+
+    def reset(self) -> None:
+        """
+        트랙 단위 상태(트래커 ID, 시선 히스테리시스, 체류 시간, 나이/성별 투표)만 초기화.
+        모델 가중치는 다시 로드하지 않는다. (exhibit.py에서 체험자/분석 세션 전환 시 사용)
+        """
+        self.tracker = OCSortAdapter(self._tracker_cfg)
+        self.look_judge = LookJudge(self.cfg.get("logic", {}).get("attention", {}))
+        if self.stay_tracker is not None:
+            self.stay_tracker = StayTracker(self.cfg.get("logic", {}).get("roi", {}).get("polygon", []))
+        self.mivolo.reset()
 
     def process(self, frame) -> OrchestratorOutput:
         t0 = time.perf_counter()

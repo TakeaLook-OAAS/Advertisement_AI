@@ -90,7 +90,12 @@ class MiVOLOAttr:
             verbose=False,
         )
         return model
-    
+
+    def reset(self) -> None:
+        """track_id별 나이/성별 캐시와 투표 샘플 초기화 (모델은 유지)."""
+        self._attr_cache.clear()
+        self._samples.clear()
+
     def infer(self, frame: np.ndarray, tracks: List[Track]) -> List[Track]:
         """
         각 track의 attr 필드를 채워서 반환.

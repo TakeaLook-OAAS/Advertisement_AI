@@ -5,6 +5,7 @@ __pycache__/
 
 # Outputs
 data/benchmark/*
+data/exhibit/*
 data/output/*
 data/samples/*
 data/train/*

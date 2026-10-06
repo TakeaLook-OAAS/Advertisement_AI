@@ -4,6 +4,11 @@ device_id: "dddddddd-0000-0000-0000-000000000001"
 source: "data/samples/test.mp4"
 #source: 0
 
+exhibit:                       # 전시 체험용 (python -m src.exhibit)
+  camera: 0                    # 웹캠 번호
+  record_seconds: 10           # 체험 녹화 시간(초)
+  output_dir: "data/exhibit/"  # 원본/실시간 분석/최종 분석 영상 저장 폴더
+
 display:
   show_window: false
   output_video: false
