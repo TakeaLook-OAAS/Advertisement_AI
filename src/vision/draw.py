@@ -116,10 +116,11 @@ def draw_headpose(
         color = _id_color(track.track_id)
 
         text = f"Y:{hp.yaw:+.0f} P:{hp.pitch:+.0f} R:{hp.roll:+.0f}"
+        (tw, _), _ = cv2.getTextSize(text, cv2.FONT_HERSHEY_SIMPLEX, font_scale, thickness)
         cv2.putText(
             img=frame,
             text=text,
-            org=(bbox.x2, bbox.y1 - 18),       # bbox 오른쪽 위
+            org=(bbox.x2 - tw, bbox.y1 - 18),  # 텍스트 오른쪽 끝 = bbox 오른쪽 위
             fontFace=cv2.FONT_HERSHEY_SIMPLEX,
             fontScale=font_scale,
             color=color,
@@ -163,10 +164,11 @@ def draw_gaze(
 
         # gaze 수치 텍스트 (headpose 텍스트 위에 표시)
         text = f"G:{gaze.x:+.2f} {gaze.y:+.2f} {gaze.z:+.2f}"
+        (tw, _), _ = cv2.getTextSize(text, cv2.FONT_HERSHEY_SIMPLEX, font_scale, thickness)
         cv2.putText(
             img=frame,
             text=text,
-            org=(bbox.x2, bbox.y1 - 36),       # headpose 텍스트(-18) 위
+            org=(bbox.x2 - tw, bbox.y1 - 36),  # headpose 텍스트(-18) 위, 오른쪽 정렬
             fontFace=cv2.FONT_HERSHEY_SIMPLEX,
             fontScale=font_scale,
             color=color,
@@ -207,10 +209,12 @@ def draw_look(
         if lr is None:
             continue
         color = _id_color(track.track_id)
+        text = f"Look:{lr.is_looking} Degree:{lr.angle_deg:.1f}"
+        (tw, _), _ = cv2.getTextSize(text, cv2.FONT_HERSHEY_SIMPLEX, font_scale, thickness)
         cv2.putText(
             img=frame,
-            text=f"Look:{lr.is_looking} Degree:{lr.angle_deg:.1f}",
-            org=(track.bbox.x2, track.bbox.y1 - 72),   # ROI 텍스트(-54) 위
+            text=text,
+            org=(track.bbox.x2 - tw, track.bbox.y1 - 72),   # ROI 텍스트(-54) 위, 오른쪽 정렬
             fontFace=cv2.FONT_HERSHEY_SIMPLEX,
             fontScale=font_scale,
             color=color,
